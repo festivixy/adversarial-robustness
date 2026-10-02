@@ -1,2 +1,62 @@
 \section{Literature Review}
 \label{sec:literature-review}
+
+A robustness evaluation can focus on either attacks or certificates. Attacks attempt to find
+adversarially manipulated examples, in which a minimal change to the input, one an observer cannot
+distinguish from the original, makes the network produce a new
+output~\cite{MapSource01,MapSource02}. Certificates try to show that there does not exist such a
+close example. In this review, distance is measured through the L-infinity norm, which refers to the
+maximum change in one input coordinate. The specification of distance along with the bound makes up
+the threat model used here. The review is structured around three categories: what the failure of an
+attack indicates, the conservativeness of certificates, and what exact methods and neural network
+architecture reveal about both. Finally, the review highlights that previous research has studied
+each aspect separately, which leaves open how the gap between the two methods divides.
+
+A successful attack proves that a network is vulnerable to deception, while a failed attack provides
+only very weak evidence that it is not. This idea is stated by Carlini and Wagner~\cite{MapSource03}
+(Section I), and their paper also illustrates the cost of ignoring it. Defensive distillation had
+blocked every previous attack, but their attacks succeeded on all inputs of distillation-protected
+networks. Previous attacks utilized gradients, the numerical vectors that the attack uses to define
+a direction, and these had rounded to zero (Sections VIII-A and VIII-B). Athalye et
+al.~\cite{MapSource06} also found this kind of failure in seven out of nine defenses that were
+introduced at ICLR 2018 (Section 1, p.~1). Tram{\`e}r et al.~\cite{Tramer2020Adaptive} still
+defeated all thirteen defenses they studied, even though attacks optimized for specific defenses had
+become common practice (Section 1, p.~3). Overall, these papers demonstrate that an attack may fail
+because of the attack methodology, and not because of the robustness of the network.
+
+This problem is reduced in attacks that search for the minimal perturbation, but the extent of such
+a reduction is unknown. FAB~\cite{MapSource05}, the attack used in this study, searches for the
+smallest perturbation that changes the output. Its results are not affected by the rescaling of the
+network's outputs, which mitigates the rounding problem mentioned above (Proposition 2.1, p.~5).
+However, on defended MNIST and CIFAR-10 networks, its largest shortfall in robust accuracy compared
+with the best attack was 17.1 percentage points (Table 1, p.~7). Meanwhile,
+AutoAttack~\cite{MapSource24}, which includes FAB along with other attacks, gave robustness
+estimates lower than those reported for 48 out of 49 published models (Section 6, p.~6). Berger et
+al.~\cite{Berger2026Upper} reported that untargeted FAB is within about 5 percent of an exact
+verifier on four normally trained MNIST networks (Table 1, p.~11). The two results come from
+different benchmarks. Croce and Hein measured the fraction of attacked inputs at fixed distances
+on defended networks, while Berger et al.\ compared the distances on undefended networks. Neither
+work shows how far FAB is from the true distance for individual inputs in the networks studied here.
+
+Certificates give the opposite kind of evidence, providing a guaranteed lower bound that may greatly
+underestimate the true value. The networks in this study are created using Rectified Linear Units
+(ReLUs), which produce zero for negative inputs and propagate positive inputs unchanged. Wong and
+Kolter~\cite{MapSource09} handle a ReLU unit whose input may have either sign by replacing it with a
+triangle-shaped region containing all of its possible outputs (equation 3, p.~3). The worst case
+over this region turns into a linear program, a standard optimization problem that can be solved
+efficiently, and the largest certifiable distance is found through a search process (equation 17,
+p.~6). It represents an incomplete method, as there may exist robust inputs that it is unable to
+certify.
+
+The assessments of the triangle's cost have mostly been done by comparison with adversarial attacks.
+Wong and Kolter compare certified error with the error found by PGD, which is a powerful iterative
+attack~\cite{MapSource04} (Table 1, p.~8). Salman et al.~\cite{MapSource10} found the certified
+distances for MNIST networks 1.5 to 5 times shorter than PGD's, even after finding an optimal
+solution of the relaxation, which takes over 22 CPU-years (Section 6.2, p.~9). They showed that no
+method in a large family that relaxes each ReLU independently can perform better (Corollary 4.3,
+p.~6). Tjandraatmadja et al.~\cite{MapSource15} went past this limit by relaxing a neuron together
+with the weighted sum feeding it, a case not covered in Salman et al.'s
+proof~\cite[p.~4]{MapSource10}, and verified 429 rather than 201 images out of 1,000 on a single
+network (Table 1, p.~9). All of these papers agree that the triangle relaxation is loose. As most of
+these comparisons are performed against attacks (which are also only bounds), they do not reveal the
+share of the gap between them caused by the certificate itself.
