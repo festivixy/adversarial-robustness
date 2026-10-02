@@ -1,2 +1,55 @@
 \section{Introduction}
 \label{sec:introduction}
+
+Neural networks are algorithms that learn to make predictions from examples. They are used to
+identify objects in pictures, to analyze speech, and to aid in controlling vehicles. Neural networks
+can, however, be fooled. Szegedy et al.~\cite{MapSource01} showed in 2014 that a change in an image
+imperceptible to a human eye can make a network give a completely different output. One famous
+example of such perturbation was given by Goodfellow et al.~\cite{MapSource02}: after a tiny change,
+a neural network that classified a picture of a panda as a panda with 57.7 percent confidence
+classified the same image as a gibbon with 99.3 percent confidence (Figure 1, p.~3). Such changes in
+input are called adversarial examples. In applications where mistakes cost a lot, it is important to
+know the vulnerability of the networks to such perturbations and to evaluate it properly.
+
+One possible way to formalize the problem is to use a distance measure. Perturb a single input
+incrementally. Robustness radius is the largest perturbation magnitude that does not change the
+network's decision. A large radius means prediction stability; a small radius means that a small
+change will change the prediction. There are two standard ways of estimating this radius. Attack
+finds a nearby input that changes the decision; if such an input exists, then the true radius cannot
+be larger than the observed distance and provides an upper bound $U$. On the other hand, certificate
+proves that no perturbation within a certain distance will change the decision and provides a lower
+bound $L$. The true radius $\rstar$ therefore lies between these two bounds.
+
+There are known limitations of both methods. Attack may fail to find an existing change. Carlini and
+Wagner~\cite{MapSource03} showed that a defense that had stopped all previous attacks offers no real
+protection, and Athalye et al.~\cite{MapSource06} noticed the same problem in seven out of nine
+defenses they studied. It follows that a failure of an attack is not a proof of safety. Certificate,
+in its turn, suffers from the problem of being possibly too conservative: the bound obtained by
+certificate may be much smaller than the distance of the perturbation found by attack. Salman et
+al.~\cite{MapSource10} showed that even the best version of a common certificate reports radii 1.5
+to 5 times smaller than the distances found by attacks on several MNIST networks. The common problem
+of these comparisons is that they compare attack results with certificate bounds; in the case of
+disagreement, it is impossible to tell which method is wrong. Exact methods have a potential to
+solve this problem. For small networks, a mixed-integer program can find the true radius
+$\rstar$~\cite{MapSource12}. Several papers used exact values to validate one side of the bound.
+Carlini et al.~\cite{Carlini2017Provable} and Berger et al.~\cite{Berger2026Upper} compared the
+proximity of attacks to the true radius but did not compare certificates. Weng et
+al.~\cite{Weng2018FastLin} reported a certificate, an attack, and an exact value at once, but only
+as averages over two small networks and without splitting the two sources of error.
+
+This paper measures both errors on the same input. The difference between the bounds decomposes into
+$U - L = (\rstar - L) + (U - \rstar)$. The first term represents underestimation obtained by the
+certificate, and the second term represents overestimation made by the attack. Measuring both parts
+of the decomposition for each input allows attributing the gap to the corresponding method. This
+paper compares the decomposition on networks with one, two, and three hidden layers with a similar
+number of parameters (182, 189, and 186, respectively) using five trained networks of each type and
+30 test inputs. This research aims to answer the following question: how do certificate conservatism
+and attack suboptimality vary across approximately parameter-matched ReLU classifiers with one, two,
+and three hidden layers on a fixed two-dimensional classification task under an L-infinity threat
+model? Networks and data are purposely small because exact radii can be computed only on this scale;
+therefore, the results cannot be generalized to large or deployed networks.
+
+Section~\ref{sec:literature-review} reviews previous works on attacks, certificates, and exact
+methods. Section~\ref{sec:method} describes the data, the networks, and the three estimates.
+Section~\ref{sec:results} shows the results, and Section~\ref{sec:discussion} discusses their
+implications for failed attacks and the limitations of this study.
