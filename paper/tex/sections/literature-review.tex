@@ -60,3 +60,48 @@ proof~\cite[p.~4]{MapSource10}, and verified 429 rather than 201 images out of 1
 network (Table 1, p.~9). All of these papers agree that the triangle relaxation is loose. As most of
 these comparisons are performed against attacks (which are also only bounds), they do not reveal the
 share of the gap between them caused by the certificate itself.
+
+Complete methods answer the question by computing the true distance at an enormous computational
+expense. The Reluplex method~\cite{MapSource11} required from 1,064 to 20,462 seconds per robustness
+verification case (Table 3, p.~17). Tjeng et al.~\cite{MapSource12} formulated the problem as a
+mixed-integer linear program (MILP), a linear program where some variables are constrained to take
+the value 0 or 1, treating each uncertain ReLU, one whose input could take either a positive or a
+negative sign, as an on/off switch. This was 100 to 1,000 times faster than Reluplex for small
+networks (Figure 1, p.~6). Branch-and-bound techniques later performed better
+still~\cite{MapSource13}. However, exact results are still limited to small networks, and a solver
+that reaches its time limit gives only a range~\cite[Section 4, p.~13]{MapSource11}.
+
+The same uncertain ReLUs appear to affect both exact solution performance and the conservatism of
+certificates. As Tjeng et al.\ observed, the time needed to solve the problem increased along with
+the number of uncertain ReLUs (Section 5.2.1, p.~8). Xiao et al.~\cite{MapSource16} argued that
+these uncertain ReLUs also cause most certificate error, because a stable ReLU can be handled
+exactly, but did not give any quantitative evidence of it (Appendix F, p.~20). Moreover, depth might
+also play a role. Mao et al.~\cite{MapSource21} have shown that interval bounds, a simple type of
+certificate, become much looser as the depth of an untrained network increases, and loosen more
+slowly as its width increases (Lemma 3.7 and Corollary 3.8). Tang~\cite{MapSource20} proved in
+theory that an early error could either shrink or grow without limit as layers are added, depending
+on the weights (Proposition 3.4, p.~12). These studies measure looseness through a metric different
+from the distances themselves, which means that they suggest but do not show how depth might
+influence certificate error for real inputs.
+
+Besides Berger et al., two studies have compared bounds with exact values. The paper by Carlini et
+al.~\cite{Carlini2017Provable} reports how close the Carlini and Wagner attack came to the true
+minimal distance on ten MNIST images. On average, it was within 6.6 to 13 percent of it (Section 5,
+p.~6). Furthermore, they mentioned many cases where the true minimal value was 30 to 40 percent less
+than the best result of an iterative attack (Section 4.1, p.~5). Weng et al.~\cite{Weng2018FastLin}
+reported their certificate, attack, and exact values, but only as averages for two small MNIST
+networks: distances of 0.031 and 0.023 by the certificate, 0.078 and 0.068 by the exact method, and
+0.081 by the attack for both (Table 1a, p.~8). From these numbers one might conclude that the
+certificate explains a great share of the gap. However, their analysis does not consider the two
+factors separately, and Carlini et al.'s research demonstrates that averages can hide large misses
+on individual inputs. Therefore, both the attack and certificate sides were compared with exact
+values separately, but in the work reviewed here, no study estimated what share of the total error
+for each input belongs to each side, and no cross-depth comparisons of parameter-matched networks
+were provided. Measuring this share would show, for a given network, whether a failed attack or a
+cautious certificate is the larger source of error. This study uses the triangle
+relaxation~\cite{MapSource09}, FAB~\cite{MapSource05}, and a MILP reference~\cite{MapSource12}. The
+methodology of Weng et al.\ is extended through independent consideration of each test input,
+avoiding the purely comparative approach used in most previous research. It asks: how do certificate
+conservatism and attack suboptimality vary across approximately parameter-matched ReLU classifiers
+with one, two, and three hidden layers on a fixed two-dimensional classification task, under an
+L-infinity threat model?
