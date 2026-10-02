@@ -1,0 +1,35 @@
+\documentclass[sigconf,nonacm]{acmart}
+
+\ifdraft
+\setlength{\marginparwidth}{2cm}
+\usepackage{todonotes}
+\else
+\usepackage[disable]{todonotes}
+\fi
+
+\input{tex/macros}
+
+\graphicspath{{../figures/}}
+\settopmatter{printacmref=false, printccs=false, printfolios=true}
+
+\begin{document}
+
+\title{Certificate Conservatism and Attack Suboptimality in Small ReLU Classifiers}
+
+\begin{abstract}
+\input{tex/sections/abstract}
+\end{abstract}
+
+\maketitle
+
+\input{tex/sections/introduction}
+\input{tex/sections/literature-review}
+\input{tex/sections/method}
+\input{tex/sections/results}
+\input{tex/sections/discussion}
+\input{tex/sections/conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}
