@@ -1,2 +1,32 @@
 \section{Method}
 \label{sec:method}
+
+\subsection{Data}
+\label{sec:method-data}
+
+\subsection{Networks and training}
+\label{sec:method-networks}
+
+\subsection{Robustness radius}
+\label{sec:method-radius}
+
+\begin{equation}
+  \rstar(x) = \inf \left\{ \linf{x' - x} : x' \in \D,\ h(x') \neq h(x) \right\}
+  \label{eq:radius}
+\end{equation}
+
+\subsection{Three estimates}
+\label{sec:method-estimates}
+
+\subsection{Error decomposition}
+\label{sec:method-decomposition}
+
+\begin{equation}
+  \underbrace{U - L}_{\text{total gap}}
+  = \underbrace{(\rstar - L)}_{\text{certificate error}}
+  + \underbrace{(U - \rstar)}_{\text{attack error}}
+  \label{eq:decomposition}
+\end{equation}
+
+\subsection{Data collection and analysis}
+\label{sec:method-collection}
