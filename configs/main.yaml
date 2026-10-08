@@ -1,0 +1,103 @@
+schema_version: 1
+
+experiment:
+  id: main-v1
+  stage: main
+  description: Main collection. 3 architectures x 5 seeds x 30 shared test inputs.
+
+freeze:
+  frozen: false
+  date: null
+  config_hash: null
+  readiness_review: null
+  teacher_review: null
+
+domain:
+  id: unit_square_2d
+  lower: [0.0, 0.0]
+  upper: [1.0, 1.0]
+  norm: linf
+
+dataset:
+  generator: two_moons_numpy_v1
+  n_total: 2400
+  n_train: 1440
+  n_val: 480
+  n_test: 480
+  noise: 0.15
+  generation_seed: 1001
+  split_seed: 1002
+  transform:
+    method: fixed_isotropic_affine
+    source_center: [0.5, 0.25]
+    source_half_width: 2.25
+    out_of_domain_policy: error
+
+model:
+  architectures:
+    mlp1: [36]
+    mlp2: [11, 11]
+    mlp3: [8, 8, 8]
+  n_logits: 2
+  activation: relu
+  train_dtype: float32
+  eval_dtype: float64
+
+training:
+  seeds: [1, 2, 3, 4, 5]
+  loss: cross_entropy
+  optimizer: adam
+  learning_rate: 0.001
+  batch_size: 64
+  max_epochs: 500
+  checkpoint_rule: best_val_loss_earliest_tie
+  device: cpu
+  torch_threads: 1
+
+panel:
+  size: 30
+  source_split: test
+  selection_seed: 2001
+  class_balanced: true
+  inclusion_rule: correct_by_all_models
+
+target:
+  policy: null
+  margin: null
+  prediction_tie_rule: lowest_index
+
+certificate:
+  relaxation: triangle_lp
+  intermediate_bounds: interval
+  solver: scipy_highs_lp
+  search: bisection
+  search_ceiling: point_cover_radius
+  radius_tolerance: 0.0001
+  numerical_margin: null
+
+attack:
+  implementation: null
+  variant: untargeted_linf
+  restarts: 5
+  iterations: 100
+  seeds: [3001]
+
+reference:
+  backend: scipy_highs_milp
+  bounds_region: full_domain
+  time_limit_seconds: 60
+  absolute_resolution: 0.0001
+  mip_rel_gap: null
+  primal_feasibility_tolerance: null
+  presolve: true
+  threads: 1
+  use_attack_warm_start: false
+
+tolerances:
+  domain: 1.0e-12
+  distance_recompute: 1.0e-9
+  bound_consistency: 1.0e-6
+  framework_agreement: 1.0e-5
+
+diagnostics:
+  relu_stability_radius: null

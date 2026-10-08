@@ -1,0 +1,9 @@
+experiment:
+  id: smoke-pilot-v0
+  stage: smoke
+  description: Plumbing smoke test. Outputs are excluded from all analysis.
+training:
+  seeds: [0]
+  max_epochs: 3
+panel:
+  size: 4
