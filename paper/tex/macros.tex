@@ -5,3 +5,6 @@
 \newcommand{\rstar}{r^{*}}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \newcommand{\note}[1]{\todo[inline,color=yellow!30]{#1}}
+\makeatletter
+\newcommand{\bstctlcite}[1]{\@bsphack\@for\@citeb:=#1\do{\edef\@citeb{\expandafter\@firstofone\@citeb}\if@filesw\immediate\write\@auxout{\string\citation{\@citeb}}\fi}\@esphack}
+\makeatother

@@ -5,11 +5,11 @@ Neural networks are algorithms that learn to make predictions from examples. The
 identify objects in pictures, to analyze speech, and to aid in controlling vehicles. Neural networks
 can, however, be fooled. Szegedy et al.~\cite{MapSource01} showed in 2014 that a change in an image
 imperceptible to a human eye can make a network give a completely different output. One famous
-example of such perturbation was given by Goodfellow et al.~\cite{MapSource02}: after a tiny change,
-a neural network that classified a picture of a panda as a panda with 57.7 percent confidence
-classified the same image as a gibbon with 99.3 percent confidence (Figure 1, p.~3). Such changes in
-input are called adversarial examples. In applications where mistakes cost a lot, it is important to
-know the vulnerability of the networks to such perturbations and to evaluate it properly.
+example of such perturbation was given by Goodfellow et al.~\cite[Fig.~1, p.~3]{MapSource02}: after
+a tiny change, a neural network that classified a picture of a panda as a panda with 57.7 percent
+confidence classified the same image as a gibbon with 99.3 percent confidence. Such changes in input
+are called adversarial examples. In applications where mistakes cost a lot, it is important to know
+the vulnerability of the networks to such perturbations and to evaluate it properly.
 
 One possible way to formalize the problem is to use a distance measure. Perturb a single input
 incrementally. Robustness radius is the largest perturbation magnitude that does not change the

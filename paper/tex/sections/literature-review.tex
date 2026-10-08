@@ -3,105 +3,108 @@
 
 A robustness evaluation can focus on either attacks or certificates. Attacks attempt to find
 adversarially manipulated examples, in which a minimal change to the input, one an observer cannot
-distinguish from the original, makes the network produce a new
-output~\cite{MapSource01,MapSource02}. Certificates try to show that there does not exist such a
-close example. In this review, distance is measured through the L-infinity norm, which refers to the
-maximum change in one input coordinate. The specification of distance along with the bound makes up
-the threat model used here. The review is structured around three categories: what the failure of an
-attack indicates, the conservativeness of certificates, and what exact methods and neural network
-architecture reveal about both. Finally, the review highlights that previous research has studied
-each aspect separately, which leaves open how the gap between the two methods divides.
+distinguish from the original, makes the network produce a new output~\cite{MapSource01},
+\cite{MapSource02}. Certificates try to show that there does not exist such a close example. In this
+review, distance is measured through the L-infinity norm, which refers to the maximum change in one
+input coordinate. The specification of distance along with the bound makes up the threat model used
+here. The review is structured around three categories: what the failure of an attack indicates, the
+conservativeness of certificates, and what exact methods and neural network architecture reveal
+about both. Finally, the review highlights that previous research has studied each aspect
+separately, which leaves open how the gap between the two methods divides.
 
 A successful attack proves that a network is vulnerable to deception, while a failed attack provides
-only very weak evidence that it is not. This idea is stated by Carlini and Wagner~\cite{MapSource03}
-(Section I), and their paper also illustrates the cost of ignoring it. Defensive distillation had
-blocked every previous attack, but their attacks succeeded on all inputs of distillation-protected
-networks. Previous attacks utilized gradients, the numerical vectors that the attack uses to define
-a direction, and these had rounded to zero (Sections VIII-A and VIII-B). Athalye et
-al.~\cite{MapSource06} also found this kind of failure in seven out of nine defenses that were
-introduced at ICLR 2018 (Section 1, p.~1). Tram{\`e}r et al.~\cite{Tramer2020Adaptive} still
-defeated all thirteen defenses they studied, even though attacks optimized for specific defenses had
-become common practice (Section 1, p.~3). Overall, these papers demonstrate that an attack may fail
-because of the attack methodology, and not because of the robustness of the network.
+only very weak evidence that it is not. This idea is stated by Carlini and
+Wagner~\cite[Sec.~I]{MapSource03}, and their paper also illustrates the cost of ignoring it.
+Defensive distillation had blocked every previous attack, but their attacks succeeded on all inputs
+of distillation-protected networks. Previous attacks utilized gradients, the numerical vectors that
+the attack uses to define a direction, and these had rounded to zero~\cite[Secs.~VIII-A,
+VIII-B]{MapSource03}. Athalye et al.~\cite[Sec.~1, p.~1]{MapSource06} also found this kind of
+failure in seven out of nine defenses that were introduced at ICLR 2018. Tram{\`e}r et
+al.~\cite[Sec.~1, p.~3]{Tramer2020Adaptive} still defeated all thirteen defenses they studied, even
+though attacks optimized for specific defenses had become common practice. Overall, these papers
+demonstrate that an attack may fail because of the attack methodology, and not because of the
+robustness of the network.
 
 This problem is reduced in attacks that search for the minimal perturbation, but the extent of such
 a reduction is unknown. FAB~\cite{MapSource05}, the attack used in this study, searches for the
 smallest perturbation that changes the output. Its results are not affected by the rescaling of the
-network's outputs, which mitigates the rounding problem mentioned above (Proposition 2.1, p.~5).
-However, on defended MNIST and CIFAR-10 networks, its largest shortfall in robust accuracy compared
-with the best attack was 17.1 percentage points (Table 1, p.~7). Meanwhile,
-AutoAttack~\cite{MapSource24}, which includes FAB along with other attacks, gave robustness
-estimates lower than those reported for 48 out of 49 published models (Section 6, p.~6). Berger et
-al.~\cite{Berger2026Upper} reported that untargeted FAB is within about 5 percent of an exact
-verifier on four normally trained MNIST networks (Table 1, p.~11). The two results come from
-different benchmarks. Croce and Hein measured the fraction of attacked inputs at fixed distances
-on defended networks, while Berger et al.\ compared the distances on undefended networks. Neither
-work shows how far FAB is from the true distance for individual inputs in the networks studied here.
+network's outputs, which mitigates the rounding problem mentioned above~\cite[Prop.~2.1,
+p.~5]{MapSource05}. However, on defended MNIST and CIFAR-10 networks, its largest shortfall in
+robust accuracy compared with the best attack was 17.1 percentage points~\cite[Tab.~1,
+p.~7]{MapSource05}. Meanwhile, AutoAttack~\cite[Sec.~6, p.~6]{MapSource24}, which includes FAB along
+with other attacks, gave robustness estimates lower than those reported for 48 out of 49 published
+models. Berger et al.~\cite[Tab.~1, p.~11]{Berger2026Upper} reported that untargeted FAB is within
+about 5 percent of an exact verifier on four normally trained MNIST networks. The two results come
+from different benchmarks. Croce and Hein~\cite{MapSource24} measured the fraction of attacked
+inputs at fixed distances on defended networks, while Berger et al.~\cite{Berger2026Upper} compared
+the distances on undefended networks. Neither work shows how far FAB is from the true distance for
+individual inputs in the networks studied here.
 
 Certificates give the opposite kind of evidence, providing a guaranteed lower bound that may greatly
 underestimate the true value. The networks in this study are created using Rectified Linear Units
 (ReLUs), which produce zero for negative inputs and propagate positive inputs unchanged. Wong and
-Kolter~\cite{MapSource09} handle a ReLU unit whose input may have either sign by replacing it with a
-triangle-shaped region containing all of its possible outputs (equation 3, p.~3). The worst case
+Kolter~\cite[Eq.~(3), p.~3]{MapSource09} handle a ReLU unit whose input may have either sign by
+replacing it with a triangle-shaped region containing all of its possible outputs. The worst case
 over this region turns into a linear program, a standard optimization problem that can be solved
-efficiently, and the largest certifiable distance is found through a search process (equation 17,
-p.~6). It represents an incomplete method, as there may exist robust inputs that it is unable to
-certify.
+efficiently, and the largest certifiable distance is found through a search process~\cite[Eq.~(17),
+p.~6]{MapSource09}. It represents an incomplete method, as there may exist robust inputs that it is
+unable to certify.
 
 The assessments of the triangle's cost have mostly been done by comparison with adversarial attacks.
-Wong and Kolter compare certified error with the error found by PGD, which is a powerful iterative
-attack~\cite{MapSource04} (Table 1, p.~8). Salman et al.~\cite{MapSource10} found the certified
-distances for MNIST networks 1.5 to 5 times shorter than PGD's, even after finding an optimal
-solution of the relaxation, which takes over 22 CPU-years (Section 6.2, p.~9). They showed that no
-method in a large family that relaxes each ReLU independently can perform better (Corollary 4.3,
-p.~6). Tjandraatmadja et al.~\cite{MapSource15} went past this limit by relaxing a neuron together
-with the weighted sum feeding it, a case not covered in Salman et al.'s
-proof~\cite[p.~4]{MapSource10}, and verified 429 rather than 201 images out of 1,000 on a single
-network (Table 1, p.~9). All of these papers agree that the triangle relaxation is loose. As most of
-these comparisons are performed against attacks (which are also only bounds), they do not reveal the
-share of the gap between them caused by the certificate itself.
+Wong and Kolter~\cite[Tab.~1, p.~8]{MapSource09} compare certified error with the error found by
+PGD, which is a powerful iterative attack~\cite{MapSource04}. Salman et al.~\cite[Sec.~6.2,
+p.~9]{MapSource10} found the certified distances for MNIST networks 1.5 to 5 times shorter than
+PGD's, even after finding an optimal solution of the relaxation, which takes over 22 CPU-years. They
+showed that no method in a large family that relaxes each ReLU independently can perform
+better~\cite[Cor.~4.3, p.~6]{MapSource10}. Tjandraatmadja et al.~\cite[Tab.~1, p.~9]{MapSource15}
+went past this limit by relaxing a neuron together with the weighted sum feeding it, a case not
+covered in Salman et al.'s proof~\cite[p.~4]{MapSource10}, and verified 429 rather than 201 images
+out of 1,000 on a single network. All of these papers agree that the triangle relaxation is loose.
+As most of these comparisons are performed against attacks (which are also only bounds), they do not
+reveal the share of the gap between them caused by the certificate itself.
 
 Complete methods answer the question by computing the true distance at an enormous computational
-expense. The Reluplex method~\cite{MapSource11} required from 1,064 to 20,462 seconds per robustness
-verification case (Table 3, p.~17). Tjeng et al.~\cite{MapSource12} formulated the problem as a
+expense. The Reluplex method~\cite[Tab.~3, p.~17]{MapSource11} required from 1,064 to 20,462 seconds
+per robustness verification case. Tjeng et al.~\cite{MapSource12} formulated the problem as a
 mixed-integer linear program (MILP), a linear program where some variables are constrained to take
 the value 0 or 1, treating each uncertain ReLU, one whose input could take either a positive or a
 negative sign, as an on/off switch. This was 100 to 1,000 times faster than Reluplex for small
-networks (Figure 1, p.~6). Branch-and-bound techniques later performed better
+networks~\cite[Fig.~1, p.~6]{MapSource12}. Branch-and-bound techniques later performed better
 still~\cite{MapSource13}. However, exact results are still limited to small networks, and a solver
-that reaches its time limit gives only a range~\cite[Section 4, p.~13]{MapSource11}.
+that reaches its time limit gives only a range~\cite[Sec.~4, p.~13]{MapSource11}.
 
 The same uncertain ReLUs appear to affect both exact solution performance and the conservatism of
-certificates. As Tjeng et al.\ observed, the time needed to solve the problem increased along with
-the number of uncertain ReLUs (Section 5.2.1, p.~8). Xiao et al.~\cite{MapSource16} argued that
-these uncertain ReLUs also cause most certificate error, because a stable ReLU can be handled
-exactly, but did not give any quantitative evidence of it (Appendix F, p.~20). Moreover, depth might
-also play a role. Mao et al.~\cite{MapSource21} have shown that interval bounds, a simple type of
-certificate, become much looser as the depth of an untrained network increases, and loosen more
-slowly as its width increases (Lemma 3.7 and Corollary 3.8). Tang~\cite{MapSource20} proved in
-theory that an early error could either shrink or grow without limit as layers are added, depending
-on the weights (Proposition 3.4, p.~12). These studies measure looseness through a metric different
-from the distances themselves, which means that they suggest but do not show how depth might
-influence certificate error for real inputs.
+certificates. As Tjeng et al.~\cite[Sec.~5.2.1, p.~8]{MapSource12} observed, the time needed to
+solve the problem increased along with the number of uncertain ReLUs. Xiao et al.~\cite[App.~F,
+p.~20]{MapSource16} argued that these uncertain ReLUs also cause most certificate error, because a
+stable ReLU can be handled exactly, but did not give any quantitative evidence of it. Moreover,
+depth might also play a role. Mao et al.~\cite[Lemma~3.7, Cor.~3.8]{MapSource21} have shown that
+interval bounds, a simple type of certificate, become much looser as the depth of an untrained
+network increases, and loosen more slowly as its width increases. Tang~\cite[Prop.~3.4,
+p.~12]{MapSource20} proved in theory that an early error could either shrink or grow without limit
+as layers are added, depending on the weights. These studies measure looseness through a metric
+different from the distances themselves, which means that they suggest but do not show how depth
+might influence certificate error for real inputs.
 
-Besides Berger et al., two studies have compared bounds with exact values. The paper by Carlini et
-al.~\cite{Carlini2017Provable} reports how close the Carlini and Wagner attack came to the true
-minimal distance on ten MNIST images. On average, it was within 6.6 to 13 percent of it (Section 5,
-p.~6). Furthermore, they mentioned many cases where the true minimal value was 30 to 40 percent less
-than the best result of an iterative attack (Section 4.1, p.~5). Weng et al.~\cite{Weng2018FastLin}
+Besides Berger et al.~\cite{Berger2026Upper}, two studies have compared bounds with exact values.
+The paper by Carlini et al.~\cite{Carlini2017Provable} reports how close the Carlini and Wagner
+attack came to the true minimal distance on ten MNIST images. On average, it was within 6.6 to 13
+percent of it~\cite[Sec.~5, p.~6]{Carlini2017Provable}. Furthermore, they mentioned many cases where
+the true minimal value was 30 to 40 percent less than the best result of an iterative
+attack~\cite[Sec.~4.1, p.~5]{Carlini2017Provable}. Weng et al.~\cite[Tab.~1a, p.~8]{Weng2018FastLin}
 reported their certificate, attack, and exact values, but only as averages for two small MNIST
 networks: distances of 0.031 and 0.023 by the certificate, 0.078 and 0.068 by the exact method, and
-0.081 by the attack for both (Table 1a, p.~8). From these numbers one might conclude that the
-certificate explains a great share of the gap. However, their analysis does not consider the two
-factors separately, and Carlini et al.'s research demonstrates that averages can hide large misses
-on individual inputs. Therefore, both the attack and certificate sides were compared with exact
-values separately, but in the work reviewed here, no study estimated what share of the total error
-for each input belongs to each side, and no cross-depth comparisons of parameter-matched networks
-were provided. Measuring this share would show, for a given network, whether a failed attack or a
-cautious certificate is the larger source of error. This study uses the triangle
+0.081 by the attack for both. From these numbers one might conclude that the certificate explains a
+great share of the gap. However, their analysis does not consider the two factors separately, and
+Carlini et al.'s research~\cite{Carlini2017Provable} demonstrates that averages can hide large
+misses on individual inputs. Therefore, both the attack and certificate sides were compared with
+exact values separately, but in the work reviewed here, no study estimated what share of the total
+error for each input belongs to each side, and no cross-depth comparisons of parameter-matched
+networks were provided. Measuring this share would show, for a given network, whether a failed
+attack or a cautious certificate is the larger source of error. This study uses the triangle
 relaxation~\cite{MapSource09}, FAB~\cite{MapSource05}, and a MILP reference~\cite{MapSource12}. The
-methodology of Weng et al.\ is extended through independent consideration of each test input,
-avoiding the purely comparative approach used in most previous research. It asks: how do certificate
-conservatism and attack suboptimality vary across approximately parameter-matched ReLU classifiers
-with one, two, and three hidden layers on a fixed two-dimensional classification task, under an
-L-infinity threat model?
+methodology of Weng et al.~\cite{Weng2018FastLin} is extended through independent consideration of
+each test input, avoiding the purely comparative approach used in most previous research. It asks:
+how do certificate conservatism and attack suboptimality vary across approximately parameter-matched
+ReLU classifiers with one, two, and three hidden layers on a fixed two-dimensional classification
+task, under an L-infinity threat model?
