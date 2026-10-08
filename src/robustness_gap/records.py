@@ -1,22 +1,3 @@
-"""Record formats, status vocabulary, hashing, and safe writing to disk.
-
-Every result produced by the pipeline is saved as a JSON record that carries a schema version, a
-kind, and an input hash. The input hash is a SHA-256 fingerprint of everything that produced the
-record, such as the network weights, the target definition, and the attack budget. When the pipeline
-is rerun it reuses a saved record only if the fingerprint still matches, and if the fingerprint has
-changed it stops with a StaleRecordError instead of quietly reusing or overwriting old work, because
-changed inputs call for a new experiment id.
-
-Records are written atomically. The data first goes to a temporary file in the same directory, is
-flushed to disk, and is then renamed over the destination in a single step, so an interrupted run
-never leaves a half-written file and can simply be resumed.
-
-Standard JSON has no representation for NaN or infinity, and silently writing them would let a
-missing measurement masquerade as a number. The writer therefore rejects them outright, and absent
-values are stored as null together with an explicit status from the Status vocabulary. Each adapter
-is allowed only a subset of those statuses, which ALLOWED_STATUSES lists, and check_status enforces.
-"""
-
 from __future__ import annotations
 
 import hashlib
