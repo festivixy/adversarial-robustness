@@ -7,10 +7,16 @@ distinguish from the original, makes the network produce a new output~\cite{MapS
 \cite{MapSource02}. Certificates try to show that there does not exist such a close example. In this
 review, distance is measured through the L-infinity norm, which refers to the maximum change in one
 input coordinate. The specification of distance along with the bound makes up the threat model used
-here. The review is structured around three categories: what the failure of an attack indicates, the
-conservativeness of certificates, and what exact methods and neural network architecture reveal
-about both. Finally, the review highlights that previous research has studied each aspect
-separately, which leaves open how the gap between the two methods divides.
+here. The review is structured around three categories: what the failure of an attack indicates
+\textcolor{red}{(Section~\ref{sec:lr-attacks})}, the conservativeness of certificates
+\textcolor{red}{(Section~\ref{sec:lr-certificates})}, and what exact methods and neural network
+architecture reveal about both \textcolor{red}{(Section~\ref{sec:lr-exact})}. Finally,
+\textcolor{red}{Section~\ref{sec:lr-gap}} highlights that previous research has studied each aspect
+separately, which leaves open \textcolor{red}{how much of the gap between the attack and the
+certificate comes from each method}.
+
+\subsection{What a Failed Attack Indicates}
+\label{sec:lr-attacks}
 
 A successful attack proves that a network is vulnerable to deception, while a failed attack provides
 only very weak evidence that it is not. This idea is stated by Carlini and
@@ -40,17 +46,22 @@ inputs at fixed distances on defended networks, while Berger et al.~\cite{Berger
 the distances on undefended networks. Neither work shows how far FAB is from the true distance for
 individual inputs in the networks studied here.
 
+\subsection{Conservativeness of Certificates}
+\label{sec:lr-certificates}
+
 Certificates give the opposite kind of evidence, providing a guaranteed lower bound that may greatly
 underestimate the true value. The networks in this study are created using Rectified Linear Units
-(ReLUs), which produce zero for negative inputs and propagate positive inputs unchanged. Wong and
-Kolter~\cite[Eq.~(3), p.~3]{MapSource09} handle a ReLU unit whose input may have either sign by
+(ReLUs), which \textcolor{red}{output zero when the value fed into them is negative and pass positive
+values through unchanged}. Wong and Kolter~\cite[Eq.~(3), p.~3]{MapSource09} handle a ReLU unit
+whose \textcolor{red}{incoming value} may have either sign by
 replacing it with a triangle-shaped region containing all of its possible outputs. The worst case
 over this region turns into a linear program, a standard optimization problem that can be solved
 efficiently, and the largest certifiable distance is found through a search process~\cite[Eq.~(17),
 p.~6]{MapSource09}. It represents an incomplete method, as there may exist robust inputs that it is
 unable to certify.
 
-The assessments of the triangle's cost have mostly been done by comparison with adversarial attacks.
+The assessments of \textcolor{red}{how much the triangle relaxation underestimates the true distance}
+have mostly been done by comparison with adversarial attacks.
 Wong and Kolter~\cite[Tab.~1, p.~8]{MapSource09} compare certified error with the error found by
 PGD, which is a powerful iterative attack~\cite{MapSource04}. Salman et al.~\cite[Sec.~6.2,
 p.~9]{MapSource10} found the certified distances for MNIST networks 1.5 to 5 times shorter than
@@ -59,11 +70,15 @@ showed that no method in a large family that relaxes each ReLU independently can
 better~\cite[Cor.~4.3, p.~6]{MapSource10}. Tjandraatmadja et al.~\cite[Tab.~1, p.~9]{MapSource15}
 went past this limit by relaxing a neuron together with the weighted sum feeding it, a case not
 covered in Salman et al.'s proof~\cite[p.~4]{MapSource10}, and verified 429 rather than 201 images
-out of 1,000 on a single network. All of these papers agree that the triangle relaxation is loose.
+out of 1,000 on a single network. All of these papers agree that the triangle relaxation is
+loose\textcolor{red}{, meaning its certified distances can fall far below the true ones}.
 As most of these comparisons are performed against attacks (which are also only bounds), they do not
 reveal the share of the gap between them caused by the certificate itself.
 
-Complete methods answer the question by computing the true distance at an enormous computational
+\subsection{Exact Methods and Architecture}
+\label{sec:lr-exact}
+
+Complete methods \textcolor{red}{can measure that share} by computing the true distance at an enormous computational
 expense. The Reluplex method~\cite[Tab.~3, p.~17]{MapSource11} required from 1,064 to 20,462 seconds
 per robustness verification case. Tjeng et al.~\cite{MapSource12} formulated the problem as a
 mixed-integer linear program (MILP), a linear program where some variables are constrained to take
@@ -97,11 +112,24 @@ networks: distances of 0.031 and 0.023 by the certificate, 0.078 and 0.068 by th
 0.081 by the attack for both. From these numbers one might conclude that the certificate explains a
 great share of the gap. However, their analysis does not consider the two factors separately, and
 Carlini et al.'s research~\cite{Carlini2017Provable} demonstrates that averages can hide large
-misses on individual inputs. Therefore, both the attack and certificate sides were compared with
-exact values separately, but in the work reviewed here, no study estimated what share of the total
+misses on individual inputs.
+
+\subsection{Research Gap}
+\label{sec:lr-gap}
+
+\textcolor{red}{In summary,} both the attack and certificate sides were compared with exact values
+separately, but in the work reviewed here, no study estimated what share of the total
 error for each input belongs to each side, and no cross-depth comparisons of parameter-matched
 networks were provided. Measuring this share would show, for a given network, whether a failed
-attack or a cautious certificate is the larger source of error. This study uses the triangle
+attack or a cautious certificate is the larger source of error. This matter is important because
+each of these mistakes poses a unique threat. A false negative mistake of not seeing a change makes
+a network seem stronger than it really is, thus justifying the security problems listed
+above~\cite{MapSource03}, \cite{MapSource06}, \cite{Tramer2020Adaptive}. A conservative certificate,
+on the other hand, makes a network look less secure than it really is, thus leaving safe inputs
+without certification. Knowing which mistake prevails helps researchers know what to suspect in
+terms of metrics as well as focus on improving methodology issues accordingly. In addition,
+examining different depth networks will test the idea of Mao et al.~\cite{MapSource21} that
+certificate looseness grows as new layers are added to the network. This study uses the triangle
 relaxation~\cite{MapSource09}, FAB~\cite{MapSource05}, and a MILP reference~\cite{MapSource12}. The
 methodology of Weng et al.~\cite{Weng2018FastLin} is extended through independent consideration of
 each test input, avoiding the purely comparative approach used in most previous research. It asks:
