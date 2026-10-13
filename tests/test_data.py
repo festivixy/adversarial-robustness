@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from robustness_gap.data import apply_transform, generate_dataset, load_dataset
+from robustness_gap.data import (apply_transform, generate_dataset, load_dataset,
+                                 select_panel)
 
 
 @pytest.fixture
@@ -38,3 +39,12 @@ def test_out_of_domain_is_an_error_not_a_clip():
          "out_of_domain_policy": "error"}
     with pytest.raises(ValueError, match="outside D"):
         apply_transform(np.array([[0.0, 0.0], [5.0, 0.0]]), t)
+
+
+def test_panel_balanced_deterministic_and_within_split(dataset):
+    a = select_panel(dataset, 30, "test", 2001, True)
+    assert a == select_panel(dataset, 30, "test", 2001, True)
+    test_ids, _, y = dataset.subset("test")
+    label = dict(zip(test_ids, y))
+    assert all(s in label for s in a)
+    assert sum(label[s] for s in a) == 15

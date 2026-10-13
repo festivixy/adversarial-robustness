@@ -128,3 +128,17 @@ def load_dataset(path: Path) -> Dataset:
     manifest = verify_dataset(path)
     z = np.load(path / "arrays.npz", allow_pickle=False)
     return Dataset(manifest["dataset_id"], z["ids"], z["X"], z["y"], z["split"])
+
+
+def select_panel(ds: Dataset, size: int, source_split: str, seed: int, class_balanced: bool) -> list[str]:
+    ids, _, y = ds.subset(source_split)
+    rng = np.random.default_rng(seed)
+    if not class_balanced:
+        return sorted(rng.choice(np.sort(ids), size=size, replace=False).tolist())
+    if size % 2:
+        raise ValueError("class-balanced panel needs an even size")
+    chosen = []
+    for cls in (0, 1):
+        pool = np.sort(ids[y == cls])
+        chosen.extend(rng.choice(pool, size=size // 2, replace=False).tolist())
+    return sorted(chosen)
