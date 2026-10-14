@@ -59,13 +59,16 @@ def cmd_validate(args) -> int:
 
 
 def cmd_generate_data(args) -> int:
-    from .data import generate_dataset
+    from .data import generate_dataset, load_dataset
+    from .plots import plot_dataset
 
     authored, cfg = _load(args)
     root = Path(args.root)
     path = generate_dataset(cfg, root / "data")
+    figs = plot_dataset(load_dataset(path), root / "figures" / cfg["experiment"]["id"] / "dataset_train")
     write_manifest(root, args, authored, cfg, "generate-data")
     print(f"dataset: {path}")
+    print(f"figure:  {figs[0]}")
     return 0
 
 
