@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import random
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -32,27 +34,17 @@ def _accuracy(model: nn.Module, X: torch.Tensor, y: torch.Tensor) -> float:
         return float((model(X).argmax(dim=1) == y).float().mean())
 
 
-def split_tensors(ds: Dataset, name: str, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
-    _, X, y = ds.subset(name)
-    return torch.tensor(X, dtype=dtype), torch.tensor(y, dtype=torch.long)
+@dataclass
+class FitResult:
+    best_state: dict | None
+    best_epoch: int | None
+    best_loss: float | None
+    curve: list[str]
+    status: str
+    elapsed: float
 
 
-def train_one(cfg: dict, ds: Dataset, dataset_hash: str, arch_id: str, seed: int,
-              out_dir: Path, provenance: dict) -> dict:
-    tcfg, mcfg = cfg["training"], cfg["model"]
-    settings = (tcfg["loss"], tcfg["optimizer"], tcfg["checkpoint_rule"], tcfg["device"])
-    if settings != SUPPORTED:
-        raise NotImplementedError(f"only {SUPPORTED} is implemented, got {settings}")
-    widths = mcfg["architectures"][arch_id]
-    dtype = DTYPES[mcfg["train_dtype"]]
-    input_hash = records.sha256_json({
-        "science": scientific_hash(cfg), "dataset_hash": dataset_hash, "arch": arch_id, "seed": seed,
-    })
-    record_path = out_dir / "record.json"
-    cached = records.load_if_current(record_path, input_hash)
-    if cached is not None:
-        return cached
-
+def fit(tcfg: dict, widths, dtype: torch.dtype, ds: Dataset, seed: int, max_epochs: int) -> FitResult:
     torch.set_num_threads(tcfg["torch_threads"])
     gen = seed_everything(seed)
     model = build_mlp(widths, dtype)
@@ -65,7 +57,7 @@ def train_one(cfg: dict, ds: Dataset, dataset_hash: str, arch_id: str, seed: int
     curve = ["epoch,train_loss,val_loss,val_accuracy"]
     status = "success"
     t0 = time.perf_counter()
-    for epoch in range(1, tcfg["max_epochs"] + 1):
+    for epoch in range(1, max_epochs + 1):
         model.train()
         perm = torch.randperm(len(Xtr), generator=gen)
         total = 0.0
@@ -86,18 +78,51 @@ def train_one(cfg: dict, ds: Dataset, dataset_hash: str, arch_id: str, seed: int
         if val_loss < best_loss:
             best_loss, best_epoch = val_loss, epoch
             best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
-    elapsed = time.perf_counter() - t0
+    return FitResult(best_state, best_epoch, best_loss if best_state is not None else None,
+                     curve, status, time.perf_counter() - t0)
 
+
+def split_tensors(ds: Dataset, name: str, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
+    _, X, y = ds.subset(name)
+    return torch.tensor(X, dtype=dtype), torch.tensor(y, dtype=torch.long)
+
+
+def state_fingerprint(state: dict) -> str:
+    h = hashlib.sha256()
+    for key in sorted(state):
+        h.update(key.encode())
+        h.update(state[key].detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
+def train_one(cfg: dict, ds: Dataset, dataset_hash: str, arch_id: str, seed: int,
+              out_dir: Path, provenance: dict) -> dict:
+    tcfg, mcfg = cfg["training"], cfg["model"]
+    settings = (tcfg["loss"], tcfg["optimizer"], tcfg["checkpoint_rule"], tcfg["device"])
+    if settings != SUPPORTED:
+        raise NotImplementedError(f"only {SUPPORTED} is implemented, got {settings}")
+    widths = mcfg["architectures"][arch_id]
+    dtype = DTYPES[mcfg["train_dtype"]]
+    input_hash = records.sha256_json({
+        "science": scientific_hash(cfg), "dataset_hash": dataset_hash, "arch": arch_id, "seed": seed,
+    })
+    record_path = out_dir / "record.json"
+    cached = records.load_if_current(record_path, input_hash)
+    if cached is not None:
+        return cached
+
+    result = fit(tcfg, widths, dtype, ds, seed, tcfg["max_epochs"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    records.atomic_write_bytes(out_dir / "curve.csv", ("\n".join(curve) + "\n").encode())
+    records.atomic_write_bytes(out_dir / "curve.csv", ("\n".join(result.curve) + "\n").encode())
     ckpt_path, ckpt_hash, accs = None, None, {}
-    if best_state is not None:
-        model.load_state_dict(best_state)
+    if result.best_state is not None:
+        model = build_mlp(widths, dtype)
+        model.load_state_dict(result.best_state)
         model.eval()
         ckpt_path = out_dir / "checkpoint.pt"
         tmp = out_dir / ".checkpoint.pt.tmp"
         torch.save({"hidden_widths": list(widths), "dtype": mcfg["train_dtype"],
-                    "state_dict": best_state}, tmp)
+                    "state_dict": result.best_state}, tmp)
         tmp.replace(ckpt_path)
         ckpt_hash = records.sha256_file(ckpt_path)
         accs = {name: _accuracy(model, *split_tensors(ds, name, dtype)) for name in ("train", "val", "test")}
@@ -122,14 +147,14 @@ def train_one(cfg: dict, ds: Dataset, dataset_hash: str, arch_id: str, seed: int
         "dtype": mcfg["train_dtype"],
         "device": tcfg["device"],
         "torch_threads": tcfg["torch_threads"],
-        "epochs_run": len(curve) - 1,
-        "selected_epoch": best_epoch,
-        "best_val_loss": best_loss if best_state is not None else None,
+        "epochs_run": len(result.curve) - 1,
+        "selected_epoch": result.best_epoch,
+        "best_val_loss": result.best_loss,
         "train_accuracy": accs.get("train"),
         "validation_accuracy": accs.get("val"),
         "test_accuracy": accs.get("test"),
-        "training_seconds": elapsed,
-        "status": status,
+        "training_seconds": result.elapsed,
+        "status": result.status,
     }, input_hash)
     records.atomic_write_json(record_path, rec)
     return rec

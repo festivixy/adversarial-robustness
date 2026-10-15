@@ -128,6 +128,22 @@ def cmd_progress(args) -> int:
     return 0
 
 
+def print_selfcheck(r: dict) -> bool:
+    t = r["tests"]
+    status = "skipped" if not t["ran"] else ("pass" if t["passed"] else "FAIL")
+    print(f"tests:       {status} {t.get('summary', '')}")
+    print(f"fingerprint: {r['fingerprint']}  ({r['fingerprint_network']}, {r['fingerprint_seconds']:.1f}s)")
+    print(f"cpu:         {r['environment']['cpu_model']} ({r['environment']['logical_cpus']} logical CPUs)")
+    print(f"code hash:   {r['environment']['code_hash']}")
+    return not t["ran"] or t["passed"]
+
+
+def cmd_selfcheck(args) -> int:
+    _, cfg = _load(args, guard=False)
+    print(f"checking machine {args.machine} ...")
+    return 0 if print_selfcheck(lab.selfcheck(Path(args.root), cfg, args.machine, not args.skip_tests)) else 1
+
+
 def cmd_note(args) -> int:
     _, cfg = _load(args, guard=False)
     collection.add_note(Path(args.root), cfg, args.machine, " ".join(args.text))
@@ -177,6 +193,8 @@ def build_parser() -> argparse.ArgumentParser:
     which.add_argument("--all", action="store_true", help="every job")
     sp.add_argument("--main-run", action="store_true")
     command("progress", cmd_progress, "show what has been done and where")
+    sp = command("selfcheck", cmd_selfcheck, "test this computer before using it", machine=True)
+    sp.add_argument("--skip-tests", action="store_true")
     sp = command("note", cmd_note, "write down an observation", machine=True)
     sp.add_argument("text", nargs="+")
     command("notes", cmd_notes, "print every note in time order")

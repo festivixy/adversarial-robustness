@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 
 from . import records
-from .collection import EventLog, Job, LATER_STAGES, Paths, check_machine, stamp
+from .collection import EventLog, Job, LATER_STAGES, Paths, check_machine, now_utc, stamp
 from .config import scientific_hash
 from .data import Dataset, generate_dataset, load_dataset, select_panel
-from .provenance import code_hash, code_identity, cpu_model
+from .provenance import code_hash, code_identity, cpu_model, environment
 from .targets import TargetDefinition, predict
-from .train import load_network, train_one
+from .train import DTYPES, fit, load_network, state_fingerprint, train_one
+
+SELFCHECK_EPOCHS = 5
 
 
 def prepare(root: str | Path, cfg: dict) -> tuple[Dataset, str, list[str]]:
@@ -126,3 +130,30 @@ def work(root: str | Path, cfg: dict, jobs: list[Job], machine: str, say=print) 
     events.write("session_end", completed=len([s for s in summaries if "error" not in s]),
                  failed=len([s for s in summaries if "error" in s]))
     return summaries
+
+
+def selfcheck(root: str | Path, cfg: dict, machine: str, run_tests: bool = True) -> dict:
+    check_machine(machine)
+    root = Path(root)
+    tests = {"ran": False}
+    if run_tests and (root / "tests").is_dir():
+        r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(root / "tests")],
+                           capture_output=True, text=True, cwd=root)
+        lines = [line for line in r.stdout.splitlines() if line.strip()]
+        tests = {"ran": True, "passed": r.returncode == 0, "summary": lines[-1] if lines else ""}
+
+    ds = load_dataset(generate_dataset(cfg, Paths(root, cfg).data_root))
+    arch_id = next(iter(cfg["model"]["architectures"]))
+    widths = cfg["model"]["architectures"][arch_id]
+    result = fit(cfg["training"], widths, DTYPES[cfg["model"]["train_dtype"]], ds, 0, SELFCHECK_EPOCHS)
+    report = {
+        "machine": machine,
+        "time": now_utc(),
+        "environment": environment(root),
+        "tests": tests,
+        "fingerprint_network": f"{arch_id}, seed 0, {SELFCHECK_EPOCHS} epochs",
+        "fingerprint": state_fingerprint(result.best_state) if result.best_state else None,
+        "fingerprint_seconds": result.elapsed,
+    }
+    records.atomic_write_json(Paths(root, cfg).machine_dir(machine) / "selfcheck" / f"{stamp()}.json", report)
+    return report
