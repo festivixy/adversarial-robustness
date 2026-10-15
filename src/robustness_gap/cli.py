@@ -104,6 +104,50 @@ def cmd_work(args) -> int:
     return run_work(Path(args.root), args, authored, cfg, jobs, args.machine)
 
 
+def print_progress(report: dict) -> None:
+    print(f"panel size: {report['panel_size']}")
+    print(f"{'job':<16} {'trained':<18} {'machine':<12} {'clean':>6} {'cert':>6} {'attack':>7} {'ref':>5}")
+    for r in report["jobs"]:
+        print(f"{r['job']:<16} {r['trained']:<18} {r['machine'] or '-':<12} {r['clean']:>6} "
+              f"{r['certificate']:>6} {r['attack']:>7} {r['reference']:>5}")
+    if report["machines"]:
+        print(f"\n{'machine':<12} {'sessions':>8} {'notes':>6} {'tests':>6} {'fingerprint':<13} {'seconds':>8}  cpu")
+        for name, m in report["machines"].items():
+            tests = {True: "pass", False: "FAIL", None: "-"}[m["tests_passed"]]
+            secs = f"{m['fingerprint_seconds']:.1f}" if m["fingerprint_seconds"] is not None else "-"
+            print(f"{name:<12} {m['sessions']:>8} {m['notes']:>6} {tests:>6} {m['fingerprint'] or '-':<13} "
+                  f"{secs:>8}  {m['cpu'] or '-'}")
+        prints = {m["fingerprint"] for m in report["machines"].values() if m["fingerprint"]}
+        if len(prints) > 1:
+            print("\nmachines produced different fingerprints, so training is not bit-identical across them")
+
+
+def cmd_progress(args) -> int:
+    _, cfg = _load(args, guard=False)
+    print_progress(collection.progress(Path(args.root), cfg))
+    return 0
+
+
+def cmd_note(args) -> int:
+    _, cfg = _load(args, guard=False)
+    collection.add_note(Path(args.root), cfg, args.machine, " ".join(args.text))
+    print("note saved")
+    return 0
+
+
+def print_notes(notes: list[dict]) -> None:
+    for n in notes:
+        print(f"{n['time']}  [{n['machine']}]  {n['note']}")
+    if not notes:
+        print("no notes yet")
+
+
+def cmd_notes(args) -> int:
+    _, cfg = _load(args, guard=False)
+    print_notes(collection.all_notes(Path(args.root), cfg))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="robustness-gap",
                                  description="The robustness-gap command and its subcommands.",
@@ -132,6 +176,10 @@ def build_parser() -> argparse.ArgumentParser:
     which.add_argument("--slot", help="this machine's share, e.g. 3/10")
     which.add_argument("--all", action="store_true", help="every job")
     sp.add_argument("--main-run", action="store_true")
+    command("progress", cmd_progress, "show what has been done and where")
+    sp = command("note", cmd_note, "write down an observation", machine=True)
+    sp.add_argument("text", nargs="+")
+    command("notes", cmd_notes, "print every note in time order")
     return ap
 
 

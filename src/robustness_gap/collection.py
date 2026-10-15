@@ -138,3 +138,43 @@ def all_notes(root: str | Path, cfg: dict) -> list[dict]:
     machines = Paths(root, cfg).runs / "machines"
     notes = [n for p in sorted(machines.glob("*/notes.jsonl")) for n in read_jsonl(p)]
     return sorted(notes, key=lambda n: (n["time"], n["machine"]))
+
+
+def panel_ids(root: str | Path, cfg: dict) -> list[str]:
+    path = Paths(root, cfg).results / "panel.json"
+    return records.read_json(path)["sample_ids"] if path.exists() else []
+
+
+def latest_selfcheck(machine_dir: Path) -> dict | None:
+    checks = sorted((machine_dir / "selfcheck").glob("*.json"))
+    return records.read_json(checks[-1]) if checks else None
+
+
+def progress(root: str | Path, cfg: dict) -> dict:
+    paths = Paths(root, cfg)
+    panel = panel_ids(root, cfg)
+    rows = []
+    for job in all_jobs(cfg):
+        rec_path = paths.model_dir(job.job_id) / "record.json"
+        rec = records.read_json(rec_path) if rec_path.exists() else None
+        counts = {st: sum((paths.instance_dir(job.job_id, s) / f"{st}.json").exists() for s in panel)
+                  for st in ("clean", *LATER_STAGES)}
+        rows.append({
+            "job": job.job_id,
+            "trained": rec["status"] if rec else "not started",
+            "machine": rec.get("machine") if rec else None,
+            "validation_accuracy": rec.get("validation_accuracy") if rec else None,
+            **counts,
+        })
+    machines = {}
+    for d in sorted(p for p in (paths.runs / "machines").glob("*") if p.is_dir()):
+        latest = latest_selfcheck(d)
+        machines[d.name] = {
+            "sessions": len(list((d / "sessions").glob("*.jsonl"))),
+            "notes": len(read_jsonl(d / "notes.jsonl")),
+            "cpu": latest["environment"]["cpu_model"] if latest else None,
+            "tests_passed": latest["tests"].get("passed") if latest else None,
+            "fingerprint": latest["fingerprint"][:12] if latest and latest["fingerprint"] else None,
+            "fingerprint_seconds": latest["fingerprint_seconds"] if latest else None,
+        }
+    return {"panel_size": len(panel), "jobs": rows, "machines": machines}
