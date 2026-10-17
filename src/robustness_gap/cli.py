@@ -164,6 +164,23 @@ def cmd_notes(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    _, cfg = _load(args, guard=False)
+    print(f"bundle written: {collection.export_bundle(Path(args.root), cfg, args.machine)}")
+    return 0
+
+
+def print_import(r: dict) -> None:
+    print(f"from {r['from_machine']}: {r['added']} added, {r['identical']} already present, "
+          f"{r['extended_logs']} logs extended, {len(r['conflicts_kept_existing'])} conflicts kept as existing")
+
+
+def cmd_import(args) -> int:
+    _, cfg = _load(args, guard=False)
+    print_import(collection.import_bundle(Path(args.root), cfg, args.bundle, args.keep_existing, args.allow_code_mismatch))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="robustness-gap",
                                  description="The robustness-gap command and its subcommands.",
@@ -199,6 +216,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp = command("note", cmd_note, "write down an observation", machine=True)
     sp.add_argument("text", nargs="+")
     command("notes", cmd_notes, "print every note in time order")
+    command("export", cmd_export, "pack this computer's results into a bundle", machine=True)
+    sp = command("import", cmd_import, "merge a bundle from another computer")
+    sp.add_argument("bundle", type=Path)
+    sp.add_argument("--keep-existing", action="store_true", help="on conflict keep local files and continue")
+    sp.add_argument("--allow-code-mismatch", action="store_true")
     return ap
 
 
