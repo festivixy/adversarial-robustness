@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import multiprocessing
 import os
 import subprocess
 import sys
 import time
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import records
-from .collection import EventLog, Job, LATER_STAGES, Paths, check_machine, now_utc, stamp
+from .collection import (EventLog, Job, LabError, LATER_STAGES, Paths, check_machine, now_utc,
+                         stamp)
 from .config import scientific_hash
 from .data import Dataset, generate_dataset, load_dataset, select_panel
 from .provenance import code_hash, code_identity, cpu_model, environment
@@ -15,6 +19,21 @@ from .targets import TargetDefinition, predict
 from .train import DTYPES, fit, load_network, state_fingerprint, train_one
 
 SELFCHECK_EPOCHS = 5
+
+
+@contextmanager
+def keep_awake():
+    if sys.platform != "win32":
+        yield
+        return
+    import ctypes
+
+    es_continuous, es_system_required = 0x80000000, 0x00000001
+    ctypes.windll.kernel32.SetThreadExecutionState(es_continuous | es_system_required)
+    try:
+        yield
+    finally:
+        ctypes.windll.kernel32.SetThreadExecutionState(es_continuous)
 
 
 def prepare(root: str | Path, cfg: dict) -> tuple[Dataset, str, list[str]]:
@@ -100,33 +119,67 @@ def describe(summary: dict) -> str:
             f"({summary['seconds']:.1f}s)")
 
 
-def work(root: str | Path, cfg: dict, jobs: list[Job], machine: str, say=print) -> list[dict]:
+def work(root: str | Path, cfg: dict, jobs: list[Job], machine: str, workers: int = 1,
+         say=print, should_stop=lambda: False) -> list[dict]:
     check_machine(machine)
+    if workers < 1:
+        raise LabError("workers must be at least 1")
     root = Path(root)
     paths = Paths(root, cfg)
     prepare(root, cfg)
     provenance = machine_provenance(root, machine)
     events = EventLog(paths.machine_dir(machine) / "sessions" / f"{stamp()}.jsonl", machine)
-    events.write("session_start", jobs=[j.job_id for j in jobs], workers=1,
+    events.write("session_start", jobs=[j.job_id for j in jobs], workers=workers,
                  config_hash=scientific_hash(cfg), code_hash=provenance["code_hash"],
                  code_revision=provenance["code_revision"], cpu_model=provenance["cpu_model"],
                  logical_cpus=os.cpu_count())
     summaries: list[dict] = []
+
+    def finished(job: Job, summary: dict | None, error: BaseException | None) -> None:
+        if error is None:
+            events.write("job_done", job=job.job_id, summary=summary)
+        else:
+            summary = {"job": job.job_id, "error": f"{type(error).__name__}: {error}"}
+            events.write("job_failed", job=job.job_id, error=summary["error"])
+        summaries.append(summary)
+        say(describe(summary))
+
+    pending = list(jobs)
     try:
-        for job in jobs:
-            events.write("job_start", job=job.job_id)
-            say(f"start   {job.job_id}")
-            try:
-                summary = run_job(str(root), cfg, job, machine, provenance)
-                events.write("job_done", job=job.job_id, summary=summary)
-            except Exception as e:
-                summary = {"job": job.job_id, "error": f"{type(e).__name__}: {e}"}
-                events.write("job_failed", job=job.job_id, error=summary["error"])
-            summaries.append(summary)
-            say(describe(summary))
+        with keep_awake():
+            if workers == 1:
+                while pending and not should_stop():
+                    job = pending.pop(0)
+                    events.write("job_start", job=job.job_id)
+                    say(f"start   {job.job_id}")
+                    try:
+                        finished(job, run_job(str(root), cfg, job, machine, provenance), None)
+                    except Exception as e:
+                        finished(job, None, e)
+            else:
+                with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn")) as pool:
+                    running = {}
+                    while pending or running:
+                        while pending and len(running) < workers and not should_stop():
+                            job = pending.pop(0)
+                            running[pool.submit(run_job, str(root), cfg, job, machine, provenance)] = job
+                            events.write("job_start", job=job.job_id)
+                            say(f"start   {job.job_id}")
+                        if not running:
+                            break
+                        done, _ = wait(running, timeout=1.0, return_when=FIRST_COMPLETED)
+                        for future in done:
+                            job = running.pop(future)
+                            try:
+                                finished(job, future.result(), None)
+                            except Exception as e:
+                                finished(job, None, e)
     except KeyboardInterrupt:
         events.write("session_interrupted", completed=[s["job"] for s in summaries])
         raise
+    if pending:
+        events.write("session_stopped", not_started=[j.job_id for j in pending])
+        say(f"stopped; {len(pending)} job(s) not started")
     events.write("session_end", completed=len([s for s in summaries if "error" not in s]),
                  failed=len([s for s in summaries if "error" in s]))
     return summaries

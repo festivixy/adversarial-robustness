@@ -89,10 +89,10 @@ def cmd_plan(args) -> int:
     return 0
 
 
-def run_work(root: Path, args, authored: dict, cfg: dict, jobs: list, machine: str) -> int:
+def run_work(root: Path, args, authored: dict, cfg: dict, jobs: list, machine: str, workers: int) -> int:
     write_manifest(root, args, authored, cfg, "work")
-    print(f"machine {machine}: {len(jobs)} jobs")
-    summaries = lab.work(root, cfg, jobs, machine)
+    print(f"machine {machine}: {len(jobs)} jobs, {workers} worker(s)")
+    summaries = lab.work(root, cfg, jobs, machine, workers)
     failed = [s for s in summaries if "error" in s]
     print(f"finished: {len(summaries) - len(failed)} ok, {len(failed)} failed")
     return 1 if failed else 0
@@ -101,7 +101,7 @@ def run_work(root: Path, args, authored: dict, cfg: dict, jobs: list, machine: s
 def cmd_work(args) -> int:
     authored, cfg = _load(args)
     jobs = collection.select_jobs(cfg, args.job, args.slot, args.all)
-    return run_work(Path(args.root), args, authored, cfg, jobs, args.machine)
+    return run_work(Path(args.root), args, authored, cfg, jobs, args.machine, args.workers)
 
 
 def print_progress(report: dict) -> None:
@@ -191,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     which.add_argument("--job", action="append", help="a job id such as mlp2-seed3 (repeatable)")
     which.add_argument("--slot", help="this machine's share, e.g. 3/10")
     which.add_argument("--all", action="store_true", help="every job")
+    sp.add_argument("--workers", type=int, default=1, help="jobs to run side by side (default 1)")
     sp.add_argument("--main-run", action="store_true")
     command("progress", cmd_progress, "show what has been done and where")
     sp = command("selfcheck", cmd_selfcheck, "test this computer before using it", machine=True)
