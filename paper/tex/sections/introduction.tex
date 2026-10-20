@@ -14,9 +14,10 @@ the vulnerability of the networks to such perturbations and to evaluate it prope
 One possible way to formalize the problem is to use a distance measure. Perturb a single input
 incrementally. Robustness radius is the largest perturbation magnitude that does not change the
 network's decision. A large radius means prediction stability; a small radius means that a small
-change will change the prediction. There are two standard ways of estimating this radius. Attack
-finds a nearby input that changes the decision; if such an input exists, then the true radius cannot
-be larger than the observed distance and provides an upper bound $U$. On the other hand, certificate
+change will change the prediction. There are two standard ways of estimating this
+radius\textcolor{red}{: (a)} attack finds a nearby input that changes the decision\textcolor{red}{, and}
+if such an input exists, then the true radius cannot be larger than the observed distance and
+provides an upper bound $U$\textcolor{red}{; and (b)} certificate
 proves that no perturbation within a certain distance will change the decision and provides a lower
 bound $L$. The true radius $\rstar$ therefore lies between these two bounds.
 
@@ -38,8 +39,12 @@ al.~\cite{Weng2018FastLin} reported a certificate, an attack, and an exact value
 as averages over two small networks and without splitting the two sources of error.
 
 This paper measures both errors on the same input. The difference between the bounds decomposes into
-$U - L = (\rstar - L) + (U - \rstar)$. The first term represents underestimation obtained by the
-certificate, and the second term represents overestimation made by the attack. Measuring both parts
+\[
+  \textcolor{red}{U - L = (\rstar - L) + (U - \rstar).}
+\]
+The first term\textcolor{red}{, $\rstar - L$,} represents underestimation obtained by the certificate,
+and the second term\textcolor{red}{, $U - \rstar$,} represents overestimation made by the attack.
+Measuring both parts
 of the decomposition for each input allows attributing the gap to the corresponding method. This
 paper compares the decomposition on networks with one, two, and three hidden layers with a similar
 number of parameters (182, 189, and 186, respectively) using five trained networks of each type and
