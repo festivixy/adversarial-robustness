@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hmac
 import html
+import io
 import json
 import secrets
+import socket
 import threading
 import time
+import zipfile
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,6 +21,8 @@ from .provenance import code_hash
 DEFAULT_PORT = 8765
 DEFAULT_LEASE_SECONDS = 600
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ITEMS = ("src", "configs", "tests", "scripts", "pyproject.toml", "uv.lock", ".python-version", "README.md")
 
 
 class CoordinatorError(LabError):
@@ -28,6 +33,15 @@ class CoordinatorError(LabError):
 
 def iso(t: float | None) -> str | None:
     return datetime.fromtimestamp(t, timezone.utc).isoformat(timespec="seconds") if t is not None else None
+
+
+def lan_address() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
 
 
 class Coordinator:
@@ -201,6 +215,34 @@ class Coordinator:
                 "machines": self.state["machines"],
             }
 
+    def project_zip(self) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            for item in PROJECT_ITEMS:
+                path = PROJECT_ROOT / item
+                if not path.exists():
+                    continue
+                files = [path] if path.is_file() else sorted(p for p in path.rglob("*") if p.is_file())
+                for p in files:
+                    if "__pycache__" not in p.parts and not p.name.endswith(".pyc"):
+                        z.write(p, p.relative_to(PROJECT_ROOT).as_posix())
+        return buf.getvalue()
+
+    def bootstrap_script(self, base_url: str) -> str:
+        return BOOTSTRAP.replace("{BASE_URL}", base_url)
+
+
+BOOTSTRAP = """$ErrorActionPreference = "Stop"
+$dest = Join-Path $HOME "adversarial-robustness"
+$zip = Join-Path $env:TEMP "adversarial-robustness-project.zip"
+Write-Host "Downloading the project from {BASE_URL} ..."
+Invoke-WebRequest -UseBasicParsing "{BASE_URL}/project.zip" -OutFile $zip
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Expand-Archive -Force $zip $dest
+Remove-Item $zip
+Write-Host "Project placed in $dest"
+& (Join-Path $dest "scripts\\windows\\setup.bat") "{BASE_URL}"
+"""
 
 STATE_LABELS = {"pending": "waiting", "claimed": "running", "done": "done", "failed": "FAILED"}
 
@@ -264,6 +306,9 @@ class Handler(BaseHTTPRequestHandler):
             raise CoordinatorError("upload too large", 413)
         return self.rfile.read(length)
 
+    def _base_url(self) -> str:
+        return f"http://{self.headers.get('Host') or f'{lan_address()}:{self.server.server_address[1]}'}"
+
     def do_GET(self):
         c = self.coordinator
         try:
@@ -271,6 +316,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, render_page(c.status()).encode(), "text/html; charset=utf-8")
             elif self.path == "/api/status":
                 self._json(200, c.status())
+            elif self.path == "/project.zip":
+                self._send(200, c.project_zip(), "application/zip")
+            elif self.path == "/bootstrap.ps1":
+                self._send(200, c.bootstrap_script(self._base_url()).encode(), "text/plain; charset=utf-8")
             else:
                 self._json(404, {"error": "not found"})
         except Exception as e:
