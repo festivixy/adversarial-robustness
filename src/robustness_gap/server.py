@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import html
 import json
 import secrets
 import threading
@@ -10,12 +11,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import records
-from .collection import EventLog, LabError, Paths, all_jobs, check_machine
+from .collection import EventLog, LabError, Paths, all_jobs, check_machine, import_bundle, stamp
 from .config import scientific_hash
 from .provenance import code_hash
 
 DEFAULT_PORT = 8765
 DEFAULT_LEASE_SECONDS = 600
+MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 
 
 class CoordinatorError(LabError):
@@ -167,6 +169,77 @@ class Coordinator:
             self._save()
             return {"ok": True}
 
+    def upload(self, machine: str, data: bytes) -> dict:
+        check_machine(machine)
+        with self.lock:
+            self._seen(machine)
+            raw = self.dir / "uploads" / f"{stamp()}__{machine}.zip"
+            records.atomic_write_bytes(raw, data)
+            report = import_bundle(self.root, self.cfg, raw, keep_existing=True)
+            if report["conflicts_kept_existing"]:
+                self.events.write("duplicate_results_kept_first", by=machine,
+                                  files=report["conflicts_kept_existing"])
+            self.events.write("upload", by=machine, added=report["added"], identical=report["identical"])
+            self._save()
+            return report
+
+    def status(self) -> dict:
+        with self.lock:
+            self._expire()
+            jobs = {}
+            for job_id, job in self.state["jobs"].items():
+                jobs[job_id] = {k: job[k] for k in ("state", "machine", "attempts", "error")}
+                jobs[job_id]["lease_until"] = iso(job["lease_until"])
+            counts = {s: sum(j["state"] == s for j in jobs.values()) for s in ("pending", "claimed", "done", "failed")}
+            return {
+                "experiment_id": self.paths.experiment_id,
+                "stage": self.cfg["experiment"]["stage"],
+                "scientific_hash": self.scientific_hash,
+                "code_hash": self.code_hash,
+                "counts": counts,
+                "jobs": jobs,
+                "machines": self.state["machines"],
+            }
+
+
+STATE_LABELS = {"pending": "waiting", "claimed": "running", "done": "done", "failed": "FAILED"}
+
+
+def render_page(status: dict) -> str:
+    rows = "".join(
+        f"<tr class='{j['state']}'><td>{html.escape(job_id)}</td><td>{STATE_LABELS[j['state']]}</td>"
+        f"<td>{html.escape(j['machine'] or '')}</td><td>{j['attempts']}</td>"
+        f"<td>{html.escape(j['error'] or '')}</td></tr>"
+        for job_id, j in status["jobs"].items()
+    )
+    machines = "".join(
+        f"<tr><td>{html.escape(name)}</td><td>{html.escape(m.get('last_seen') or '')}</td>"
+        f"<td>{len(m.get('jobs', []))}</td><td>{html.escape(m.get('cpu') or '')}</td></tr>"
+        for name, m in sorted(status["machines"].items())
+    )
+    c = status["counts"]
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="10">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coordinator {html.escape(status['experiment_id'])}</title>
+<style>
+body {{ font-family: system-ui, sans-serif; margin: 24px; color: #111; background: #fff; }}
+table {{ border-collapse: collapse; margin-bottom: 24px; }}
+td, th {{ border: 1px solid #ccc; padding: 4px 10px; text-align: left; }}
+tr.done td {{ background: #eef7ee; }} tr.claimed td {{ background: #eef2fb; }}
+tr.failed td {{ background: #fbeeee; font-weight: bold; }}
+code {{ background: #f3f3f3; padding: 2px 4px; }}
+</style></head><body>
+<h1>{html.escape(status['experiment_id'])} <small>({html.escape(status['stage'])})</small></h1>
+<p>{c['done']} done, {c['claimed']} running, {c['pending']} waiting, {c['failed']} failed.
+Page refreshes every 10 seconds.</p>
+<h2>Jobs</h2>
+<table><tr><th>job</th><th>state</th><th>machine</th><th>attempts</th><th>error</th></tr>{rows}</table>
+<h2>Machines</h2>
+<table><tr><th>machine</th><th>last seen (UTC)</th><th>jobs taken</th><th>cpu</th></tr>{machines}</table>
+<p>code hash <code>{status['code_hash'][:12]}</code>, settings hash <code>{status['scientific_hash'][:12]}</code></p>
+</body></html>"""
+
 
 class Handler(BaseHTTPRequestHandler):
     coordinator: Coordinator
@@ -187,12 +260,29 @@ class Handler(BaseHTTPRequestHandler):
 
     def _body(self) -> bytes:
         length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_UPLOAD_BYTES:
+            raise CoordinatorError("upload too large", 413)
         return self.rfile.read(length)
+
+    def do_GET(self):
+        c = self.coordinator
+        try:
+            if self.path == "/":
+                self._send(200, render_page(c.status()).encode(), "text/html; charset=utf-8")
+            elif self.path == "/api/status":
+                self._json(200, c.status())
+            else:
+                self._json(404, {"error": "not found"})
+        except Exception as e:
+            self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
     def do_POST(self):
         c = self.coordinator
         try:
             c.check_auth(self.headers.get("X-Access-Code"))
+            if self.path == "/api/upload":
+                self._json(200, c.upload(self.headers.get("X-Machine", ""), self._body()))
+                return
             body = json.loads(self._body() or b"{}")
             actions = {"/api/claim": c.claim, "/api/heartbeat": c.heartbeat, "/api/report": c.report}
             if self.path not in actions:
