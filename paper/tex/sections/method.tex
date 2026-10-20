@@ -4,19 +4,83 @@
 \subsection{Data}
 \label{sec:method-data}
 
+The two-moons dataset is used here; it is a binary classification problem where each
+point consists of two features, and the classes are formed by
+interlocking semicircles. The dataset requires a nonlinear, curved decision
+boundary, can be completely visualized, and keeps the networks small enough to
+make them solvable via MILP. A total of 2,400
+points are created with Gaussian noise of 0.15 standard deviation (seed 1001) and
+split into training (1,440), validation (480), and test (480) sets with equal proportion from each
+class (seed 1002). There is a fixed scale that is set to be equal on both axes and is used to map
+the square of half-width 2.25 centered at $(0.5, 0.25)$ to the input domain
+$\D = [0,1]^2$; generation fails if any point is out of bounds. A list of file
+hashes is used to verify that all computing platforms use the same data.
+
 \subsection{Networks and training}
 \label{sec:method-networks}
+
+All networks considered are fully connected ReLU networks that produce two output scores. The
+three architectures differ in depth and width: (a) a single hidden layer with 36
+neurons (182 parameters, 36 ReLUs); (b) two hidden layers with 11 neurons each (189 parameters, 22
+ReLUs); and (c) three hidden layers with 8 neurons each (186 parameters, 24 ReLUs). The parameter
+count is balanced within 4 percent across architectures; however,
+the number of ReLUs depends on the depth. As the certificate relaxes all uncertain
+ReLUs, this difference represents a limitation.
+
+Each architecture is trained with five random seeds (from 1 to 5), resulting in 15
+trained networks. For the pilot experiment, seeds 9001 and 9002 are used. The training procedure
+minimizes cross-entropy loss using the Adam optimizer, with a learning rate of
+0.001 and a batch size of 64, for 500 epochs on one CPU thread in 32-bit floating point arithmetic.
+All further evaluations are done in 64-bit arithmetic. The saved checkpoint is the one with the
+lowest validation loss (in case of a tie, the earliest epoch is chosen); the test set is not
+involved in the checkpoint choice process.
 
 \subsection{Robustness radius}
 \label{sec:method-radius}
 
+The robustness radius of an input $x$ is
 \begin{equation}
   \rstar(x) = \inf \left\{ \linf{x' - x} : x' \in \D,\ h(x') \neq h(x) \right\}
   \label{eq:radius}
 \end{equation}
+where $\linf{\cdot}$ is the L-infinity distance, i.e., the maximal amount of change that can be
+made to any single coordinate, with the perturbed input $x'$ staying inside the domain $\D$. The
+output $h(x)$ of a model is defined as the class with the higher score, where ties
+are broken in favor of the class with the smaller index. For the inputs from the lower-indexed
+class, a change of output requires the other class to score strictly higher; this
+cannot be expressed using MILP, and therefore the substitute requirement for
+Equation~\eqref{eq:radius} is an open problem: either the score boundary with a
+given tolerance or a small required margin. In a first trial, the solver generated
+a point with a score gap of $-5 \times 10^{-16}$, on the boundary
+up to rounding but not a changed prediction. The rule will be fixed before the protocol is
+frozen.
 
 \subsection{Three estimates}
 \label{sec:method-estimates}
+
+The certificate provides a lower bound $L$. It uses the triangle LP
+relaxation~\cite{MapSource09}, which replaces each uncertain ReLU by the minimal
+convex region that is guaranteed to contain the graph of the ReLU inside the specified bounds, with
+the interlayer bounds determined by interval arithmetic. Linear programs are solved by HiGHS
+through SciPy, while a bisection method finds the maximal radius the relaxation can certify with
+a precision of 0.0001. Since the relaxation contains all behavior of the network,
+anything certified by the relaxation is guaranteed to be safe, i.e., $L \le \rstar$, but
+the relaxation also allows impossible outputs, so $L$ can be
+smaller than $\rstar$.
+
+The attack gives an upper bound $U$. It is an untargeted L-infinity FAB~\cite{MapSource05},
+performed with 5 restarts of 100 iterations with seed 3001; the concrete implementation has not yet
+been chosen. A candidate is accepted only if it is contained in $\D$, changes the
+prediction, and has a distance that matches an
+independent recomputation to within $10^{-9}$. If such a candidate is found, then $\rstar \le U$
+holds. The failure of the attack does not give any $U$, as not finding an
+adversarial example does not mean there is none~\cite{MapSource03}.
+
+The reference is the exact MILP~\cite{MapSource12}. The MILP has an on/off variable associated
+with each uncertain ReLU. It is solved by HiGHS through SciPy on a single thread
+with a 60-second limit, without initialization from the attack solution. The
+solver outputs an interval $a \le \rstar \le b$, which is considered resolved
+when $b - a \le 0.0001$.
 
 \subsection{Error decomposition}
 \label{sec:method-decomposition}
@@ -28,5 +92,43 @@
   \label{eq:decomposition}
 \end{equation}
 
+Equation~\eqref{eq:decomposition} splits the total gap into two non-negative parts.
+The certificate error $\rstar - L$ is the degree to which the certificate underestimates the
+radius, while the attack error $U - \rstar$ is the degree to which the attack overestimates it.
+Since the reference is an interval, the errors are bounded, not
+exact. With the combined bounds $A = \max(a, L)$ and
+$B = \min(b, U)$, the certificate error is within $[A - L,\ B - L]$ and the attack error is within
+$[U - B,\ U - A]$. If $A > B$ by more than $10^{-6}$, then the estimates are inconsistent: the
+instance is marked as inconsistent with no error recorded, and in the pilot, it is
+considered a bug. A failed attack is counted without an attack error. Errors are
+kept for each individual input and aggregated using medians, because a simple average may hide a
+large miss on a single input~\cite{Carlini2017Provable}.
+
 \subsection{Data collection and analysis}
 \label{sec:method-collection}
+
+The same 30 test inputs are used to evaluate all networks. These include 15
+inputs from each class. They have been selected randomly with a fixed seed (seed
+2001) before the computation of any robustness results. In total, 450 network--input instances (15
+networks $\times$ 30 inputs) will be calculated, but the main analysis includes
+only those inputs that all 15 networks classify correctly, reporting the number of
+such inputs. Together, the records identify the computer used, the version of the
+code, and the software environment for each result.
+
+Computation is performed on 15 school laboratory computers (one network per computer), with
+distribution controlled by the Raspberry Pi coordinator. Identical locked package versions are
+installed on each computer, and each computer runs a self-check including the
+tests and a training run to allow comparisons between computers. The coordinator will only
+accept computers whose code and settings match its own. A pilot
+will be run in early November using validation inputs and will check convergence,
+the certificate, the attack, the frequency at which the reference resolves, and
+runtime performance. Settings will be finalized on November 13, while the data collection will take
+place during the week of November 16, with the week of November 30 as a reserve.
+
+Inputs in one network are not statistically independent; thus, the network itself is
+the unit of analysis. The median certificate error and the median
+attack error for each network (based on interval midpoints) are calculated
+over resolved instances. The five medians for each architecture are considered as
+separate points for comparison. Significance tests are not planned because there are only five
+networks per architecture. The report also includes clean accuracy, $\rstar$, the frequency with
+which the reference resolves and the attack fails, and the corresponding runtimes.
