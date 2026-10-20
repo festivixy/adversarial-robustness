@@ -8,12 +8,12 @@ distinguish from the original, makes the network produce a new output~\cite{MapS
 review, distance is measured through the L-infinity norm, which refers to the maximum change in one
 input coordinate. The specification of distance along with the bound makes up the threat model used
 here. The review is structured around three categories: what the failure of an attack indicates
-\textcolor{red}{(Section~\ref{sec:lr-attacks})}, the conservativeness of certificates
-\textcolor{red}{(Section~\ref{sec:lr-certificates})}, and what exact methods and neural network
-architecture reveal about both \textcolor{red}{(Section~\ref{sec:lr-exact})}. Finally,
-\textcolor{red}{Section~\ref{sec:lr-gap}} highlights that previous research has studied each aspect
-separately, which leaves open \textcolor{red}{how much of the gap between the attack and the
-certificate comes from each method}.
+(Section~\ref{sec:lr-attacks}), the conservativeness of certificates
+(Section~\ref{sec:lr-certificates}), and what exact methods and neural network
+architecture reveal about both (Section~\ref{sec:lr-exact}). Finally,
+Section~\ref{sec:lr-gap} highlights that previous research has studied each aspect
+separately, which leaves open how much of the gap between the attack and the
+certificate comes from each method.
 
 \subsection{What a Failed Attack Indicates}
 \label{sec:lr-attacks}
@@ -51,16 +51,16 @@ individual inputs in the networks studied here.
 
 Certificates give the opposite kind of evidence, providing a guaranteed lower bound that may greatly
 underestimate the true value. The networks in this study are created using Rectified Linear Units
-(ReLUs), which \textcolor{red}{output zero when the value fed into them is negative and pass positive
-values through unchanged}. Wong and Kolter~\cite[Eq.~(3), p.~3]{MapSource09} handle a ReLU unit
-whose \textcolor{red}{incoming value} may have either sign by
+(ReLUs), which output zero when the value fed into them is negative and pass positive
+values through unchanged. Wong and Kolter~\cite[Eq.~(3), p.~3]{MapSource09} handle a ReLU unit
+whose incoming value may have either sign by
 replacing it with a triangle-shaped region containing all of its possible outputs. The worst case
 over this region turns into a linear program, a standard optimization problem that can be solved
 efficiently, and the largest certifiable distance is found through a search process~\cite[Eq.~(17),
 p.~6]{MapSource09}. It represents an incomplete method, as there may exist robust inputs that it is
 unable to certify.
 
-The assessments of \textcolor{red}{how much the triangle relaxation underestimates the true distance}
+The assessments of how much the triangle relaxation underestimates the true distance
 have mostly been done by comparison with adversarial attacks.
 Wong and Kolter~\cite[Tab.~1, p.~8]{MapSource09} compare certified error with the error found by
 PGD, which is a powerful iterative attack~\cite{MapSource04}. Salman et al.~\cite[Sec.~6.2,
@@ -71,14 +71,14 @@ better~\cite[Cor.~4.3, p.~6]{MapSource10}. Tjandraatmadja et al.~\cite[Tab.~1, p
 went past this limit by relaxing a neuron together with the weighted sum feeding it, a case not
 covered in Salman et al.'s proof~\cite[p.~4]{MapSource10}, and verified 429 rather than 201 images
 out of 1,000 on a single network. All of these papers agree that the triangle relaxation is
-loose\textcolor{red}{, meaning its certified distances can fall far below the true ones}.
+loose, meaning its certified distances can fall far below the true ones.
 As most of these comparisons are performed against attacks (which are also only bounds), they do not
 reveal the share of the gap between them caused by the certificate itself.
 
 \subsection{Exact Methods and Architecture}
 \label{sec:lr-exact}
 
-Complete methods \textcolor{red}{can measure that share} by computing the true distance at an enormous computational
+Complete methods can measure that share by computing the true distance at an enormous computational
 expense. The Reluplex method~\cite[Tab.~3, p.~17]{MapSource11} required from 1,064 to 20,462 seconds
 per robustness verification case. Tjeng et al.~\cite{MapSource12} formulated the problem as a
 mixed-integer linear program (MILP), a linear program where some variables are constrained to take
@@ -117,7 +117,7 @@ misses on individual inputs.
 \subsection{Research Gap}
 \label{sec:lr-gap}
 
-\textcolor{red}{In summary,} both the attack and certificate sides were compared with exact values
+In summary, both the attack and certificate sides were compared with exact values
 separately, but in the work reviewed here, no study estimated what share of the total
 error for each input belongs to each side, and no cross-depth comparisons of parameter-matched
 networks were provided. Measuring this share would show, for a given network, whether a failed
