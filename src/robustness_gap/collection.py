@@ -43,6 +43,11 @@ def check_machine(name: str) -> str:
     return name
 
 
+def suggest_machine_name(hostname: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", hostname).strip("-_")[:40]
+    return cleaned.lower() if cleaned else "machine"
+
+
 def model_id(arch_id: str, seed: int) -> str:
     return f"{arch_id}-seed{seed}"
 
@@ -197,6 +202,31 @@ def progress(root: str | Path, cfg: dict) -> dict:
             "fingerprint_seconds": latest["fingerprint_seconds"] if latest else None,
         }
     return {"panel_size": len(panel), "jobs": rows, "machines": machines}
+
+
+def instance_rows(root: str | Path, cfg: dict) -> list[dict]:
+    paths = Paths(root, cfg)
+    rows = []
+    for job in all_jobs(cfg):
+        for sid in panel_ids(root, cfg):
+            folder = paths.instance_dir(job.job_id, sid)
+            clean = folder / "clean.json"
+            if not clean.exists():
+                continue
+            r = records.read_json(clean)
+            rows.append({
+                "job": job.job_id,
+                "sample_id": sid,
+                "x": r["x"],
+                "true_label": r["true_label"],
+                "predicted_label": r["predicted_label"],
+                "clean_margin": r["clean_margin"],
+                "correct": r["correct"],
+                "machine": r["machine"],
+                "stages": {st: (folder / f"{st}.json").exists() for st in LATER_STAGES},
+                "folder": folder,
+            })
+    return rows
 
 
 def _bundle_files(paths: Paths) -> list[Path]:
