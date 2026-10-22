@@ -4,6 +4,7 @@ import zipfile
 import pytest
 
 from robustness_gap import collection, lab, records
+from robustness_gap.analyze import summarize_clean
 from robustness_gap.cli import main
 from robustness_gap.config import load_config, scientific_hash
 
@@ -103,6 +104,7 @@ def test_export_import_merges_machines(tmp_path, smoke_cfg):
     rows = collection.progress(a, smoke_cfg)["jobs"]
     assert all(r["trained"] == "success" and r["clean"] == smoke_cfg["panel"]["size"] for r in rows)
     assert {r["machine"] for r in rows} == {"pc-a", "pc-b"}
+    assert summarize_clean(a, smoke_cfg)["complete"]
 
     again = collection.import_bundle(a, smoke_cfg, collection.export_bundle(b, smoke_cfg, "pc-b"))
     assert again["added"] == 0 and again["identical"] > 0
@@ -167,6 +169,19 @@ def test_selfcheck_fingerprint_is_repeatable(tmp_path, smoke_cfg):
     second = lab.selfcheck(tmp_path, smoke_cfg, "pc-a", run_tests=False)
     assert first["fingerprint"] == second["fingerprint"]
     assert collection.progress(tmp_path, smoke_cfg)["machines"]["pc-a"]["fingerprint"] == first["fingerprint"][:12]
+
+
+def test_cli_end_to_end(tmp_path, capsys):
+    common = ["--config", str(REPO / "configs/pilot.yaml"), "--override",
+              str(REPO / "configs/overrides/smoke.yaml"), "--root", str(tmp_path)]
+    assert main(["plan", *common, "--machines", "2"]) == 0
+    assert main(["work", *common, "--machine", "pc-a", "--all"]) == 0
+    assert main(["note", *common, "--machine", "pc-a", "fan", "was", "loud"]) == 0
+    assert main(["progress", *common]) == 0
+    assert main(["analyze", *common]) == 0
+    out = capsys.readouterr().out
+    assert "slot  2/2" in out and "complete: True" in out
+    assert main(["work", *common, "--machine", "bad name", "--all"]) == 1
 
 
 def test_main_config_work_is_blocked(tmp_path):

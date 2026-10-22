@@ -181,6 +181,25 @@ def cmd_import(args) -> int:
     return 0
 
 
+def print_analysis(s: dict) -> None:
+    print(f"complete: {s['complete']}")
+    if s["complete"]:
+        print(f"inputs correct for every model: {s['common_correct_subset_size']} of {s['panel_size']}")
+    for key in ("missing_models", "failed_models"):
+        if s[key]:
+            print(f"{key.replace('_', ' ')}: {', '.join(s[key])}")
+    if s["missing_instances"]:
+        print(f"missing instances: {len(s['missing_instances'])}")
+
+
+def cmd_analyze(args) -> int:
+    from .analyze import summarize_clean
+
+    _, cfg = _load(args, guard=False)
+    print_analysis(summarize_clean(Path(args.root), cfg))
+    return 0
+
+
 def cmd_server(args) -> int:
     from .server import Coordinator, lan_address, make_server
 
@@ -271,6 +290,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("bundle", type=Path)
     sp.add_argument("--keep-existing", action="store_true", help="on conflict keep local files and continue")
     sp.add_argument("--allow-code-mismatch", action="store_true")
+    command("analyze", cmd_analyze, "summarise the results present so far")
     sp = command("server", cmd_server, "run the coordinator (normally on the Raspberry Pi)")
     sp.add_argument("--host", default="0.0.0.0")
     sp.add_argument("--port", type=int, default=8765)
