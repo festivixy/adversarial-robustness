@@ -62,6 +62,13 @@ def all_jobs(cfg: dict) -> list[Job]:
     ]
 
 
+def job_by_id(cfg: dict, job_id: str) -> Job:
+    for job in all_jobs(cfg):
+        if job.job_id == job_id:
+            return job
+    raise LabError(f"unknown job {job_id!r}")
+
+
 def parse_slot(text: str) -> tuple[int, int]:
     match = re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", text)
     if not match:

@@ -181,6 +181,56 @@ def cmd_import(args) -> int:
     return 0
 
 
+def cmd_server(args) -> int:
+    from .server import Coordinator, lan_address, make_server
+
+    sys.stdout.reconfigure(line_buffering=True)
+    _, cfg = _load(args)
+    coordinator = Coordinator(Path(args.root), cfg, token=args.access_code, lease_seconds=args.lease,
+                              reset_failed=args.reset_failed)
+    server = make_server(coordinator, args.host, args.port)
+    port = server.server_address[1]
+    address = f"http://{lan_address()}:{port}"
+    print(f"coordinator for {cfg['experiment']['id']} is running")
+    print(f"  status page:   {address}/")
+    print(f"  access code:   {coordinator.token}")
+    print("  set up a Windows lab computer by pasting this into PowerShell:")
+    print(f"    irm {address}/bootstrap.ps1 | iex")
+    print("press Ctrl+C to stop")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        coordinator.events.write("coordinator_stop")
+        print("\nstopped")
+    return 0
+
+
+def cmd_worker(args) -> int:
+    from .settings import load_settings
+    from .worker import CoordinatorClient, serve_jobs
+
+    saved = load_settings(args.root)
+    root = Path(args.root)
+    config = args.config or (root / saved.config if saved else None)
+    overrides = args.override or (saved.overrides(root) if saved and not args.config else [])
+    machine = args.machine or (saved.machine if saved else None)
+    url = args.coordinator or (saved.coordinator if saved else None)
+    code = args.access_code or (saved.access_code if saved else None)
+    missing = [n for n, v in (("--config", config), ("--machine", machine), ("--coordinator", url),
+                              ("--access-code", code)) if not v]
+    if missing:
+        print(f"error: missing {', '.join(missing)} (or run the lab app setup first)", file=sys.stderr)
+        return 1
+    args.config, args.override = config, overrides
+    authored, cfg = _load(args)
+    write_manifest(root, args, authored, cfg, "worker")
+    print(f"machine {machine} working for the coordinator at {url}")
+    summaries = serve_jobs(root, cfg, CoordinatorClient(url, code), machine, args.workers, wait_for_more=args.wait)
+    failed = [s for s in summaries if "error" in s]
+    print(f"finished: {len(summaries) - len(failed)} ok, {len(failed)} failed")
+    return 1 if failed else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="robustness-gap",
                                  description="The robustness-gap command and its subcommands.",
@@ -221,6 +271,25 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("bundle", type=Path)
     sp.add_argument("--keep-existing", action="store_true", help="on conflict keep local files and continue")
     sp.add_argument("--allow-code-mismatch", action="store_true")
+    sp = command("server", cmd_server, "run the coordinator (normally on the Raspberry Pi)")
+    sp.add_argument("--host", default="0.0.0.0")
+    sp.add_argument("--port", type=int, default=8765)
+    sp.add_argument("--access-code", help="reuse a specific access code instead of the saved one")
+    sp.add_argument("--lease", type=float, default=600, help="seconds before a silent computer loses its job")
+    sp.add_argument("--reset-failed", action="store_true", help="put failed jobs back in the queue")
+    sp.add_argument("--main-run", action="store_true")
+    sp = sub.add_parser("worker", help="take jobs from the coordinator until none are left",
+                        description="take jobs from the coordinator until none are left")
+    sp.add_argument("--config", type=Path)
+    sp.add_argument("--override", action="append", type=Path)
+    sp.add_argument("--root", default=".")
+    sp.add_argument("--machine")
+    sp.add_argument("--coordinator", help="address of the coordinator, e.g. 192.168.1.50:8765")
+    sp.add_argument("--access-code")
+    sp.add_argument("--workers", type=int, default=1)
+    sp.add_argument("--wait", action="store_true", help="keep waiting when the queue is empty")
+    sp.add_argument("--main-run", action="store_true")
+    sp.set_defaults(func=cmd_worker)
     return ap
 
 
