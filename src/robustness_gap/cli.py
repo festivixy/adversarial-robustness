@@ -200,6 +200,12 @@ def cmd_analyze(args) -> int:
     return 0
 
 
+def cmd_lab(args) -> int:
+    from .tui import run_app
+
+    return run_app(Path(args.root), force_setup=args.setup, coordinator=args.coordinator)
+
+
 def cmd_server(args) -> int:
     from .server import Coordinator, lan_address, make_server
 
@@ -291,6 +297,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--keep-existing", action="store_true", help="on conflict keep local files and continue")
     sp.add_argument("--allow-code-mismatch", action="store_true")
     command("analyze", cmd_analyze, "summarise the results present so far")
+    sp = sub.add_parser("lab", help="open the lab app", description="open the lab app")
+    sp.add_argument("--root", default=".", help="project folder (default: current folder)")
+    sp.add_argument("--setup", action="store_true", help="run the setup walkthrough again")
+    sp.add_argument("--coordinator", help="pre-fill the coordinator address in the walkthrough")
+    sp.set_defaults(func=cmd_lab)
     sp = command("server", cmd_server, "run the coordinator (normally on the Raspberry Pi)")
     sp.add_argument("--host", default="0.0.0.0")
     sp.add_argument("--port", type=int, default=8765)
