@@ -119,6 +119,13 @@ def test_project_zip_contains_code(tmp_path, smoke_cfg):
     assert not any("__pycache__" in n or n.startswith(("runs/", "results/", "data/")) for n in names)
 
 
+def test_every_served_project_item_exists():
+    from robustness_gap.server import PROJECT_ITEMS, PROJECT_ROOT
+
+    assert [item for item in PROJECT_ITEMS if not (PROJECT_ROOT / item).exists()] == []
+    assert (PROJECT_ROOT / "scripts" / "windows" / "setup.bat").exists()
+
+
 def test_two_workers_finish_the_queue(running, tmp_path, smoke_cfg):
     coordinator, url = running
     client = CoordinatorClient(url, "abc")
