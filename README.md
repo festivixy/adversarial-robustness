@@ -51,3 +51,30 @@ uv run robustness-gap analyze  --config configs/pilot.yaml
 configs/overrides/smoke.yaml` runs a short test whose outputs are named `smoke-*` and are not
 tracked by Git. The main configuration runs only with `--main-run`, with every setting filled in,
 and with a recorded protocol freeze whose hash matches.
+
+## Paper
+
+```bash
+cd paper
+make
+make wordcount
+```
+
+`make` writes `build/paper.pdf` (with notes) and `build/submission.pdf` (without notes). Sections
+are in `paper/tex/sections/`. `\note{...}` adds a note to the draft only. The ACM layout needs the
+TeX Live packages `publishers`, `fontsextra`, and `plaingeneric`. If a build fails after installing
+packages, run `make clean` and then `make`.
+
+## Layout
+
+```
+configs/                     pilot.yaml, main.yaml, overrides/smoke.yaml
+src/robustness_gap/          Python package
+tests/                       tests
+scripts/                     setup and launch scripts for Windows, Linux, and the Pi
+data/<dataset_id>/           generated dataset with hashes
+runs/<experiment_id>/        resolved config, trained models, machine logs, notes, self-checks
+results/<experiment_id>/     panel and per-input records
+figures/<experiment_id>/     figures
+paper/                       LaTeX source of the paper
+```
