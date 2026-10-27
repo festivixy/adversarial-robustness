@@ -301,6 +301,7 @@ def import_bundle(root: str | Path, cfg: dict, bundle: str | Path, keep_existing
             raise LabError("bundle was produced with different scientific settings")
         if manifest["code_hash"] != code_hash() and not allow_code_mismatch:
             raise LabError("bundle was produced by different code (code hash differs)")
+        check_machine(manifest.get("machine"))
         listed = set(manifest["files"])
         extra = set(z.namelist()) - listed - {"bundle.json"}
         if extra:

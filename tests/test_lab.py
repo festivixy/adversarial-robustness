@@ -153,6 +153,15 @@ def test_import_rejects_paths_outside_experiment(tmp_path, smoke_cfg, name):
         collection.import_bundle(tmp_path, smoke_cfg, forged_bundle(tmp_path / "b.zip", smoke_cfg, name))
 
 
+@pytest.mark.parametrize("machine", ["../../escaped", "..\\..\\escaped", "", None])
+def test_import_rejects_bad_machine_name_before_writing(tmp_path, smoke_cfg, machine):
+    root = tmp_path / "root"
+    bundle = forged_bundle(tmp_path / "b.zip", smoke_cfg, "runs/smoke-pilot-v0/x.json", machine=machine)
+    with pytest.raises(collection.LabError, match="machine name"):
+        collection.import_bundle(root, smoke_cfg, bundle)
+    assert sorted(p.name for p in tmp_path.rglob("*") if p.is_file()) == ["b.zip"]
+
+
 def test_import_rejects_wrong_settings_code_or_damage(tmp_path, smoke_cfg):
     name = "runs/smoke-pilot-v0/x.json"
     with pytest.raises(collection.LabError, match="scientific"):
